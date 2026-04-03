@@ -1,94 +1,114 @@
+// server.js
 const express = require("express");
 const WebSocket = require("ws");
 const mongoose = require("mongoose");
 const cors = require("cors");
+const bcrypt = require("bcrypt");
 
 const app = express();
 app.use(express.json());
 app.use(cors());
 
+// ===== CONNECT TO MONGODB =====
 mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log("MongoDB connected"))
-  .catch(err => console.log("MongoDB connection error:", err));
+  .catch(err => console.error("MongoDB connection error:", err));
 
-// ===== MODELS =====
-const User = mongoose.model("User", { username: String, password: String, avatar: String });
-const Message = mongoose.model("Message", { from: String, to: String, text: String, time: Date });
+// ===== USER MODEL =====
+const User = mongoose.model("User", {
+  username: { type: String, unique: true },
+  password: String,
+  avatar: String,
+});
 
-// ===== AUTH ROUTES =====
+// ===== MESSAGE MODEL =====
+const Message = mongoose.model("Message", {
+  from: String,
+  to: String,
+  text: String,
+  time: Date,
+});
+
+// ===== REGISTER =====
 app.post("/register", async (req, res) => {
   try {
-    const user = new User(req.body);
+    const hashed = await bcrypt.hash(req.body.password, 10);
+    const user = new User({ username: req.body.username, password: hashed });
     await user.save();
     res.status(201).send("User created");
-  } catch {
+  } catch (err) {
     res.status(400).send("Registration failed");
   }
 });
 
+// ===== LOGIN =====
 app.post("/login", async (req, res) => {
-  const user = await User.findOne(req.body);
-  if (!user) return res.status(400).send("Invalid credentials");
-  res.json({ userId: user._id, username: user.username, avatar: user.avatar });
+  const user = await User.findOne({ username: req.body.username });
+  if (!user) return res.status(400).send("Invalid username");
+
+  const match = await bcrypt.compare(req.body.password, user.password);
+  if (!match) return res.status(400).send("Invalid password");
+
+  res.json({ userId: user._id, username: user.username });
 });
 
-// ===== USERS =====
+// ===== GET USERS =====
 app.get("/users", async (req, res) => {
-  const users = await User.find({}, "_id username avatar");
+  const users = await User.find();
   res.json(users);
 });
 
-// ===== MESSAGES =====
+// ===== GET MESSAGES =====
 app.get("/messages/:user1/:user2", async (req, res) => {
   const { user1, user2 } = req.params;
-  const messages = await Message.find({
+  const msgs = await Message.find({
     $or: [
       { from: user1, to: user2 },
-      { from: user2, to: user1 }
-    ]
+      { from: user2, to: user1 },
+    ],
   }).sort({ time: 1 });
-  res.json(messages);
+  res.json(msgs);
 });
 
-// ===== SERVER & WEBSOCKET =====
+// ===== START SERVER =====
 const server = app.listen(3000, () => console.log("Server running"));
-const wss = new WebSocket.Server({ server });
 
-let clients = {};
+// ===== WEBSOCKET =====
+const wss = new WebSocket.Server({ server });
+let clients = {}; // userId => ws
 
 wss.on("connection", (ws) => {
+
   ws.on("message", async (msg) => {
     const data = JSON.parse(msg);
 
+    // Save connection
     if (data.type === "auth") {
       ws.userId = data.userId;
       clients[ws.userId] = ws;
 
       // Broadcast online users
-      const onlineUsers = Object.keys(clients);
-      wss.clients.forEach((client) => {
-        client.send(JSON.stringify({ type: "online", users: onlineUsers }));
-      });
+      const online = Object.keys(clients);
+      Object.values(clients).forEach(client => client.send(JSON.stringify({ type: "online", users: online })));
     }
 
+    // Typing
+    if (data.type === "typing" && clients[data.to]) {
+      clients[data.to].send(JSON.stringify({ type: "typing", from: data.from }));
+    }
+
+    // Message
     if (data.type === "message") {
-      const message = new Message({ ...data, time: new Date() });
+      const message = new Message({ from: data.from, to: data.to, text: data.text, time: new Date() });
       await message.save();
-
       if (clients[data.to]) clients[data.to].send(JSON.stringify(message));
-    }
-
-    if (data.type === "typing") {
-      if (clients[data.to]) clients[data.to].send(JSON.stringify({ type: "typing", from: data.from }));
     }
   });
 
   ws.on("close", () => {
-    delete clients[ws.userId];
-    // Update online users
-    const onlineUsers = Object.keys(clients);
-    wss.clients.forEach((client) => {
-      client.send(JSON.stringify({ type: "online", users: onlineUsers }));
-    });
+    if (ws.userId) delete clients[ws.userId];
+    // Broadcast updated online users
+    const online = Object.keys(clients);
+    Object.values(clients).forEach(client => client.send(JSON.stringify({ type: "online", users: online })));
   });
 });
