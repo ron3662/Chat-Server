@@ -40,14 +40,17 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 // ===== ROUTES =====
-
 // Register
 app.post("/register", async (req, res) => {
   try {
-    const user = new User({ ...req.body, lastActive: new Date() });
+    const { username, password } = req.body;
+    if (!username || !password) return res.status(400).send("Username & password required");
+
+    const user = new User({ username, password, lastActive: new Date(), avatar: "", tagline: "" });
     await user.save();
     res.send({ userId: user._id });
   } catch (err) {
+    console.error(err);
     res.status(500).send(err.message);
   }
 });
@@ -55,12 +58,17 @@ app.post("/register", async (req, res) => {
 // Login
 app.post("/login", async (req, res) => {
   try {
-    const user = await User.findOne(req.body);
+    const { username, password } = req.body;
+    if (!username || !password) return res.status(400).send("Username & password required");
+
+    const user = await User.findOne({ username, password });
     if (!user) return res.status(400).send("Invalid credentials");
+
     user.lastActive = new Date();
     await user.save();
     res.send({ userId: user._id, username: user.username, avatar: user.avatar, tagline: user.tagline });
   } catch (err) {
+    console.error(err);
     res.status(500).send(err.message);
   }
 });
@@ -87,12 +95,23 @@ app.get("/user/:userId", async (req, res) => {
   res.send(user);
 });
 
-// Update user profile
+// Update profile safely
 app.post("/user/:userId/update", upload.single("avatar"), async (req, res) => {
-  const update = { ...req.body };
-  if (req.file) update.avatar = `https://yourserver.com/uploads/${req.file.filename}`;
-  const user = await User.findByIdAndUpdate(req.params.userId, update, { new: true });
-  res.send(user);
+  try {
+    const { userId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(userId)) return res.status(400).send("Invalid userId");
+
+    const update = { ...req.body };
+    if (req.file) update.avatar = `https://yourserver.com/uploads/${req.file.filename}`;
+
+    const user = await User.findByIdAndUpdate(userId, update, { new: true });
+    if (!user) return res.status(404).send("User not found");
+
+    res.send(user);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send(err.message);
+  }
 });
 
 // Get messages between two users
