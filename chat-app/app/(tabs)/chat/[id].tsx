@@ -1,17 +1,22 @@
-import React, { useEffect, useState, useRef } from "react";
-import { View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet, KeyboardAvoidingView, Platform, Image } from "react-native";
-import { useSearchParams } from "expo-router";
-import * as ImagePicker from "expo-image-picker";
+import { useState, useEffect, useRef } from 'react';
+import { View, Text, TextInput, FlatList, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, Image } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
+import axios from 'axios';
+
+const SERVER_URL = 'https://chat-server-jznv.onrender.com';
 
 export default function ChatScreen() {
-  const { userId, id: selectedUserId } = useSearchParams();
+  const { id: selectedUserId, userId } = useLocalSearchParams();
   const [messages, setMessages] = useState([]);
-  const [chatMessage, setChatMessage] = useState("");
+  const [chatMessage, setChatMessage] = useState('');
   const wsRef = useRef<WebSocket | null>(null);
+  const flatRef = useRef<FlatList>(null);
 
   useEffect(() => {
-    const ws = new WebSocket("wss://chat-server-jznv.onrender.com");
-    ws.onopen = () => ws.send(JSON.stringify({ type: "auth", userId }));
+    axios.get(`${SERVER_URL}/messages/${userId}/${selectedUserId}`).then(res => setMessages(res.data));
+
+    const ws = new WebSocket('wss://chat-server-jznv.onrender.com');
+    ws.onopen = () => ws.send(JSON.stringify({ type: 'auth', userId }));
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
       if (data.text) setMessages(prev => [...prev, data]);
@@ -20,48 +25,49 @@ export default function ChatScreen() {
     return () => ws.close();
   }, []);
 
-  const sendMessage = async () => {
-    if (!chatMessage.trim()) return;
-    wsRef.current?.send(JSON.stringify({ type: "message", from: userId, to: selectedUserId, text: chatMessage, time: new Date() }));
-    setMessages(prev => [...prev, { text: chatMessage, from: userId, time: new Date() }]);
-    setChatMessage("");
-  };
-
-  const pickImage = async () => {
-    let result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.All });
-    if (!result.cancelled) {
-      wsRef.current?.send(JSON.stringify({ type: "message", from: userId, to: selectedUserId, media: result.uri, type: "image", time: new Date() }));
-      setMessages(prev => [...prev, { media: result.uri, type: "image", from: userId, time: new Date() }]);
-    }
+  const sendMessage = () => {
+    if (!chatMessage.trim() || !wsRef.current) return;
+    const msg = { type: 'message', from: userId, to: selectedUserId, text: chatMessage, time: new Date() };
+    wsRef.current.send(JSON.stringify(msg));
+    setMessages(prev => [...prev, msg]);
+    setChatMessage('');
   };
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: '#ECE5DD' }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={90}>
       <FlatList
+        ref={flatRef}
         data={messages}
-        keyExtractor={(_, i) => i.toString()}
-        renderItem={({ item }) => (
-          <View style={[styles.messageContainer, item.from === userId ? styles.right : styles.left]}>
-            {item.text && <Text style={styles.text}>{item.text}</Text>}
-            {item.media && <Image source={{ uri: item.media }} style={{ width: 150, height: 150, borderRadius: 10 }} />}
-          </View>
-        )}
+        keyExtractor={(item, i) => i.toString()}
+        contentContainerStyle={{ padding: 10 }}
+        onContentSizeChange={() => flatRef.current?.scrollToEnd({ animated: true })}
+        renderItem={({ item }) => {
+          const isMe = item.from === userId;
+          return (
+            <View style={[styles.messageContainer, isMe ? styles.messageRight : styles.messageLeft]}>
+              <Text style={styles.messageText}>{item.text}</Text>
+              <Text style={styles.timeText}>{new Date(item.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
+            </View>
+          );
+        }}
       />
       <View style={styles.inputContainer}>
-        <TextInput style={styles.inputBox} placeholder="Type a message" value={chatMessage} onChangeText={setChatMessage} />
-        <TouchableOpacity onPress={pickImage}><Text style={styles.sendBtn}>📎</Text></TouchableOpacity>
-        <TouchableOpacity onPress={sendMessage}><Text style={styles.sendBtn}>➡️</Text></TouchableOpacity>
+        <TextInput placeholder="Type a message" value={chatMessage} onChangeText={setChatMessage} style={styles.inputBox} />
+        <TouchableOpacity style={styles.sendButton} onPress={sendMessage}>
+          <Text style={{ color: '#fff', fontWeight: 'bold' }}>Send</Text>
+        </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  messageContainer: { margin: 5, padding: 10, borderRadius: 10, maxWidth: "70%" },
-  left: { backgroundColor: "#fff", alignSelf: "flex-start" },
-  right: { backgroundColor: "#25D366", alignSelf: "flex-end" },
-  text: { color: "#000" },
-  inputContainer: { flexDirection: "row", padding: 5, alignItems: "center" },
-  inputBox: { flex: 1, borderWidth: 1, borderRadius: 25, paddingHorizontal: 15, paddingVertical: 8, marginRight: 5 },
-  sendBtn: { fontSize: 24, marginHorizontal: 5 }
+  messageContainer: { maxWidth: '70%', padding: 10, marginVertical: 5, borderRadius: 10 },
+  messageLeft: { backgroundColor: '#fff', alignSelf: 'flex-start', borderTopLeftRadius: 0 },
+  messageRight: { backgroundColor: '#25D366', alignSelf: 'flex-end', borderTopRightRadius: 0 },
+  messageText: { fontSize: 16, color: '#000' },
+  timeText: { fontSize: 10, color: '#555', textAlign: 'right', marginTop: 2 },
+  inputContainer: { flexDirection: 'row', padding: 5, backgroundColor: '#fff', alignItems: 'center' },
+  inputBox: { flex: 1, backgroundColor: '#f0f0f0', borderRadius: 25, paddingHorizontal: 15, paddingVertical: 8, fontSize: 16, marginRight: 5 },
+  sendButton: { backgroundColor: '#25D366', width: 60, height: 45, borderRadius: 25, justifyContent: 'center', alignItems: 'center' },
 });

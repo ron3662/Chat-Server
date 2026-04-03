@@ -1,34 +1,42 @@
-import React, { useEffect, useState, useRef } from "react";
-import { View, Text, FlatList, TouchableOpacity, Image, StyleSheet } from "react-native";
-import { useSearchParams, useRouter } from "expo-router";
+import { useEffect, useState, useRef } from 'react';
+import { View, Text, FlatList, TouchableOpacity, Image, StyleSheet } from 'react-native';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import axios from 'axios';
 
-export default function PeopleTab() {
-  const { userId } = useSearchParams();
+const SERVER_URL = 'https://chat-server-jznv.onrender.com';
+
+export default function People() {
+  const { userId } = useLocalSearchParams();
   const router = useRouter();
   const [onlineUsers, setOnlineUsers] = useState([]);
   const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
-    const ws = new WebSocket("wss://chat-server-jznv.onrender.com");
-    ws.onopen = () => ws.send(JSON.stringify({ type: "auth", userId }));
+    axios.get(`${SERVER_URL}/online-users`).then(res => {
+      setOnlineUsers(res.data.filter(u => u._id !== userId));
+    });
+
+    const ws = new WebSocket('wss://chat-server-jznv.onrender.com');
+    ws.onopen = () => ws.send(JSON.stringify({ type: 'auth', userId }));
+    wsRef.current = ws;
+
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
-      if (data.type === "online") setOnlineUsers(data.users.filter(u => u !== userId));
+      if (data.type === 'online') setOnlineUsers(data.users.filter(u => u._id !== userId));
     };
-    wsRef.current = ws;
+
     return () => ws.close();
   }, []);
 
   return (
-    <View style={{ flex: 1, padding: 10 }}>
-      <Text style={{ fontSize: 20, textAlign: "center" }}>Online Users</Text>
+    <View style={{ flex: 1, paddingTop: 20 }}>
       <FlatList
         data={onlineUsers}
-        keyExtractor={(item) => item}
+        keyExtractor={item => item._id.toString()}
         renderItem={({ item }) => (
-          <TouchableOpacity style={styles.userItem} onPress={() => router.push(`/chat/${item}?userId=${userId}`)}>
-            <Image source={{ uri: `https://i.pravatar.cc/150?u=${item}` }} style={styles.avatar} />
-            <Text style={{ fontSize: 18 }}>User {item} 🟢</Text>
+          <TouchableOpacity style={styles.userItem} onPress={() => router.push(`/chat/${item._id}?userId=${userId}`)}>
+            <Image source={{ uri: item.avatar || 'https://i.pravatar.cc/150?u=' + item._id }} style={styles.avatar} />
+            <Text style={{ fontSize: 18 }}>{item.username} 🟢</Text>
           </TouchableOpacity>
         )}
       />
@@ -37,6 +45,6 @@ export default function PeopleTab() {
 }
 
 const styles = StyleSheet.create({
-  userItem: { flexDirection: "row", alignItems: "center", padding: 15, borderBottomWidth: 1, borderColor: "#ccc" },
-  avatar: { width: 40, height: 40, borderRadius: 20, marginRight: 10 },
+  userItem: { flexDirection: 'row', alignItems: 'center', padding: 15, borderBottomWidth: 1, borderColor: '#ccc' },
+  avatar: { width: 50, height: 50, borderRadius: 25, marginRight: 15 },
 });

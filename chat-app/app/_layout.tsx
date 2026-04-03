@@ -1,16 +1,10 @@
-import { UserProvider } from "../context/UserContext";
-import { ThemeProvider, DarkTheme, DefaultTheme } from "@react-navigation/native";
-import { StatusBar } from "expo-status-bar";
-import { useColorScheme } from "react-native";
+import { Stack } from 'expo-router';
 
-export default function RootLayout({ children }) {
-  const colorScheme = useColorScheme();
+export default function RootLayout() {
   return (
-    <UserProvider>
-      <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
-        {children}
-        <StatusBar style="auto" />
-      </ThemeProvider>
-    </UserProvider>
+    <Stack>
+      <Stack.Screen name="index" options={{ headerShown: false }} />  {/* Login */}
+      <Stack.Screen name="(tabs)" options={{ headerShown: false }} /> {/* Tabs after login */}
+    </Stack>
   );
 }
