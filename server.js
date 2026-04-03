@@ -8,7 +8,7 @@ app.use(express.json());
 app.use(cors());
 
 // ===== CONNECT TO MONGODB =====
-mongoose.connect('mongodb+srv://ron3662:ron3662%40@cluster0.mbeupam.mongodb.net/?appName=Cluster0');
+mongoose.connect(process.env.MONGO_URI);
 
 // ===== USER MODEL =====
 const User = mongoose.model('User', {
