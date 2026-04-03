@@ -1,38 +1,72 @@
-import { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, Image, StyleSheet } from "react-native";
-import { useRouter, useSearchParams } from "expo-router";
+// app/(tabs)/profile.tsx
+import React, { useState } from "react";
+import { View, Text, TextInput, Image, TouchableOpacity, StyleSheet, Alert } from "react-native";
+import { useUser } from "../../context/UserContext";
 import * as ImagePicker from "expo-image-picker";
+import { useRouter } from "expo-router";
 import axios from "axios";
 
 const SERVER_URL = "https://chat-server-jznv.onrender.com";
 
 export default function Profile() {
-  const { userId } = useSearchParams();
   const router = useRouter();
-  const [avatar, setAvatar] = useState("");
-  const [username, setUsername] = useState("");
-  const [tagline, setTagline] = useState("");
+  const { userId, username, setUsername, avatar, setAvatar, tagline, setTagline } = useUser();
 
-  const pickImage = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaType.Images });
-    if (!result.canceled) setAvatar(result.assets[0].uri);
+const pickImage = async () => {
+  const result = await ImagePicker.launchImageLibraryAsync({
+    mediaTypes: "Images", // ✅ use string "Images", not ImagePicker.MediaType.Images
+    allowsEditing: true,
+    quality: 1,
+  });
+
+  if (!result.canceled) {
+    const uri = result.assets[0].uri;
+    // do something with uri
+  }
+};
+
+  const saveProfile = async () => {
+    try {
+      await axios.post(`${SERVER_URL}/updateProfile`, { userId, username, avatar, tagline });
+      Alert.alert("Profile updated");
+    } catch (e) {
+      Alert.alert("Failed to update profile");
+    }
   };
 
-  const logout = () => router.replace("/");
+  const logout = () => {
+    setUsername("");
+    setAvatar("");
+    setTagline("");
+    router.replace("/");
+  };
 
   return (
-    <View style={{ flex:1, padding:20 }}>
-      <TouchableOpacity onPress={pickImage}>
-        <Image source={{ uri: avatar || "https://i.pravatar.cc/150" }} style={{ width:100, height:100, borderRadius:50, alignSelf:'center' }} />
+    <View style={styles.container}>
+      <Image source={{ uri: avatar || "https://i.pravatar.cc/150" }} style={styles.avatar} />
+      <TouchableOpacity onPress={pickImage}><Text style={{ color: "#25D366" }}>Change Avatar</Text></TouchableOpacity>
+
+      <Text>Display Name</Text>
+      <TextInput style={styles.input} value={username} onChangeText={setUsername} />
+
+      <Text>Tagline</Text>
+      <TextInput style={styles.input} value={tagline} onChangeText={setTagline} />
+
+      <TouchableOpacity style={styles.button} onPress={saveProfile}>
+        <Text style={styles.buttonText}>Save</Text>
       </TouchableOpacity>
-      <TextInput placeholder="Display Name" style={styles.input} value={username} onChangeText={setUsername} />
-      <TextInput placeholder="Tagline" style={styles.input} value={tagline} onChangeText={setTagline} />
-      <TouchableOpacity style={styles.button} onPress={logout}><Text style={{color:'#fff'}}>Logout</Text></TouchableOpacity>
+
+      <TouchableOpacity style={[styles.button, { backgroundColor: "red" }]} onPress={logout}>
+        <Text style={styles.buttonText}>Logout</Text>
+      </TouchableOpacity>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  input:{ borderWidth:1, padding:10, borderRadius:5, marginVertical:10 },
-  button:{ backgroundColor:'#25D366', padding:12, borderRadius:8, alignItems:'center', marginTop:20 },
+  container: { flex: 1, padding: 20 },
+  avatar: { width: 100, height: 100, borderRadius: 50, marginBottom: 10 },
+  input: { borderWidth: 1, borderColor: "#ccc", padding: 10, marginBottom: 10, borderRadius: 5 },
+  button: { backgroundColor: "#25D366", padding: 12, borderRadius: 8, marginVertical: 5, alignItems: "center" },
+  buttonText: { color: "#fff", fontWeight: "bold" },
 });

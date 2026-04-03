@@ -88,9 +88,10 @@ app.get("/messages/:user1/:user2", async (req, res) => {
 });
 
 // Upload Media
+const SERVER_URL = "http://localhost:3000";
 app.post("/upload", upload.single("file"), (req, res) => {
   if (!req.file) return res.status(400).send("No file uploaded");
-  res.send({ url: `https://yourserver.com/uploads/${req.file.filename}` });
+  res.send({ url: `${SERVER_URL}/uploads/${req.file.filename}` });
 });
 
 // WebSocket

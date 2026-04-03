@@ -1,17 +1,16 @@
-// Root layout
+// app/_layout.tsx
+import { UserProvider } from "../context/UserContext";
 import { Stack } from "expo-router";
-import { ThemeProvider, DarkTheme, DefaultTheme } from "@react-navigation/native";
 import { StatusBar } from "expo-status-bar";
-import { useColorScheme } from "react-native";
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
-  const colorScheme = useColorScheme();
+export default function RootLayout() {
   return (
-    <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
-      <Stack screenOptions={{ headerShown: false }}>
-        {children}
+    <UserProvider>
+      <Stack>
+        <Stack.Screen name="index" options={{ headerShown: false }} />
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       </Stack>
       <StatusBar style="auto" />
-    </ThemeProvider>
+    </UserProvider>
   );
 }

@@ -7,7 +7,9 @@ import { Ionicons } from "@expo/vector-icons";
 const SERVER_URL = "https://chat-server-jznv.onrender.com";
 
 export default function ChatScreen() {
-  const { userId, id: selectedUserId } = useSearchParams();
+  const params = useSearchParams();
+  const userId = params.userId;
+  const selectedUserId = params.id;
   const [messages, setMessages] = useState([]);
   const [chatMessage, setChatMessage] = useState("");
   const wsRef = useRef<WebSocket | null>(null);
@@ -46,7 +48,19 @@ export default function ChatScreen() {
         onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated:true })}
       />
       <View style={{ flexDirection:'row', alignItems:'center' }}>
-        <TextInput style={{ flex:1,borderWidth:1,padding:10,borderRadius:25 }} value={chatMessage} onChangeText={setChatMessage} />
+<TextInput
+  style={{
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#ccc',
+    padding: 10,
+    borderRadius: 25,
+    backgroundColor: '#fff', // white input box
+    color: '#000',           // black text
+  }}
+  value={chatMessage}
+  onChangeText={setChatMessage}
+/>
         <TouchableOpacity onPress={sendMessage}><Ionicons name="send" size={28} color="#25D366"/></TouchableOpacity>
       </View>
     </View>
@@ -54,7 +68,7 @@ export default function ChatScreen() {
 }
 
 const styles = StyleSheet.create({
-  msg:{ padding:10, marginVertical:5, borderRadius:10, maxWidth:'70%' },
-  left:{ backgroundColor:'#eee', alignSelf:'flex-start' },
-  right:{ backgroundColor:'#25D366', alignSelf:'flex-end' },
+  msg: { padding: 10, marginVertical: 5, borderRadius: 10, maxWidth: '70%' },
+  left: { backgroundColor: '#eee', alignSelf: 'flex-start' }, // light gray for incoming
+  right: { backgroundColor: '#25D366', alignSelf: 'flex-end' }, // green for outgoing
 });
