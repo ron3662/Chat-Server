@@ -1,11 +1,8 @@
+import React, { useEffect, useState, useRef } from "react";
 import { View, Text, FlatList, TouchableOpacity, Image, StyleSheet } from "react-native";
 import { useSearchParams, useRouter } from "expo-router";
-import { useEffect, useState, useRef } from "react";
-import axios from "axios";
 
-const SERVER_URL = "https://chat-server-jznv.onrender.com";
-
-export default function ChatList() {
+export default function PeopleTab() {
   const { userId } = useSearchParams();
   const router = useRouter();
   const [onlineUsers, setOnlineUsers] = useState([]);
@@ -23,15 +20,15 @@ export default function ChatList() {
   }, []);
 
   return (
-    <View style={{ flex: 1, paddingTop: 50 }}>
-      <Text style={{ fontSize: 20, textAlign: "center", marginBottom: 10 }}>Online Users</Text>
+    <View style={{ flex: 1, padding: 10 }}>
+      <Text style={{ fontSize: 20, textAlign: "center" }}>Online Users</Text>
       <FlatList
         data={onlineUsers}
         keyExtractor={(item) => item}
         renderItem={({ item }) => (
-          <TouchableOpacity style={styles.userItem} onPress={() => router.push({ pathname: `chat/${item}`, params: { userId } })}>
+          <TouchableOpacity style={styles.userItem} onPress={() => router.push(`/chat/${item}?userId=${userId}`)}>
             <Image source={{ uri: `https://i.pravatar.cc/150?u=${item}` }} style={styles.avatar} />
-            <Text style={{ fontSize: 18 }}>{item}</Text>
+            <Text style={{ fontSize: 18 }}>User {item} 🟢</Text>
           </TouchableOpacity>
         )}
       />

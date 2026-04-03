@@ -1,11 +1,11 @@
+import React from "react";
 import { Tabs } from "expo-router";
 
 export default function TabsLayout() {
   return (
-    <Tabs>
-      <Tabs.Screen name="index" options={{ title: "Login" }} />
-      <Tabs.Screen name="chat" options={{ title: "Chat" }} />
-      <Tabs.Screen name="profile" options={{ title: "Profile" }} />
+    <Tabs screenOptions={{ headerShown: false }}>
+      <Tabs.Screen name="people" />
+      <Tabs.Screen name="profile" />
     </Tabs>
   );
 }
