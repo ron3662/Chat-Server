@@ -7,16 +7,15 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
-// ===== CONNECT TO MONGODB =====
+// ===== CONNECT DB =====
 mongoose.connect(process.env.MONGO_URI);
 
-// ===== USER MODEL =====
+// ===== MODELS =====
 const User = mongoose.model('User', {
   username: String,
   password: String,
 });
 
-// ===== MESSAGE MODEL =====
 const Message = mongoose.model('Message', {
   from: String,
   to: String,
@@ -39,7 +38,27 @@ app.post('/login', async (req, res) => {
   res.json({ userId: user._id });
 });
 
-// ===== START SERVER =====
+// ===== GET USERS =====
+app.get('/users', async (req, res) => {
+  const users = await User.find({}, '_id username');
+  res.json(users);
+});
+
+// ===== GET MESSAGES =====
+app.get('/messages/:user1/:user2', async (req, res) => {
+  const { user1, user2 } = req.params;
+
+  const messages = await Message.find({
+    $or: [
+      { from: user1, to: user2 },
+      { from: user2, to: user1 }
+    ]
+  }).sort({ time: 1 });
+
+  res.json(messages);
+});
+
+// ===== SERVER =====
 const server = app.listen(3000, () => {
   console.log('Server running');
 });
@@ -54,13 +73,23 @@ wss.on('connection', (ws) => {
   ws.on('message', async (msg) => {
     const data = JSON.parse(msg);
 
-    // Save user connection
+    // AUTH
     if (data.type === 'auth') {
       ws.userId = data.userId;
       clients[ws.userId] = ws;
+
+      // broadcast online users
+      const onlineUsers = Object.keys(clients);
+
+      wss.clients.forEach(client => {
+        client.send(JSON.stringify({
+          type: "online",
+          users: onlineUsers
+        }));
+      });
     }
 
-    // Handle message
+    // MESSAGE
     if (data.type === 'message') {
       const message = new Message({
         from: data.from,
@@ -71,7 +100,7 @@ wss.on('connection', (ws) => {
 
       await message.save();
 
-      // Send to receiver
+      // send to receiver
       if (clients[data.to]) {
         clients[data.to].send(JSON.stringify(message));
       }
