@@ -1,25 +1,25 @@
-import { useState, useEffect, useRef } from 'react';
-import { View, Text, TextInput, FlatList, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, Image } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
-import axios from 'axios';
+import { useEffect, useState, useRef } from "react";
+import { View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet } from "react-native";
+import { useSearchParams } from "expo-router";
+import axios from "axios";
+import { Ionicons } from "@expo/vector-icons";
 
-const SERVER_URL = 'https://chat-server-jznv.onrender.com';
+const SERVER_URL = "https://chat-server-jznv.onrender.com";
 
 export default function ChatScreen() {
-  const { id: selectedUserId, userId } = useLocalSearchParams();
+  const { userId, id: selectedUserId } = useSearchParams();
   const [messages, setMessages] = useState([]);
-  const [chatMessage, setChatMessage] = useState('');
+  const [chatMessage, setChatMessage] = useState("");
   const wsRef = useRef<WebSocket | null>(null);
-  const flatRef = useRef<FlatList>(null);
+  const flatListRef = useRef<FlatList>(null);
 
   useEffect(() => {
     axios.get(`${SERVER_URL}/messages/${userId}/${selectedUserId}`).then(res => setMessages(res.data));
-
-    const ws = new WebSocket('wss://chat-server-jznv.onrender.com');
-    ws.onopen = () => ws.send(JSON.stringify({ type: 'auth', userId }));
-    ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      if (data.text) setMessages(prev => [...prev, data]);
+    const ws = new WebSocket("wss://chat-server-jznv.onrender.com");
+    ws.onopen = () => ws.send(JSON.stringify({ type: "auth", userId }));
+    ws.onmessage = (e) => {
+      const data = JSON.parse(e.data);
+      if (data.from === selectedUserId) setMessages(prev => [...prev, data]);
     };
     wsRef.current = ws;
     return () => ws.close();
@@ -27,47 +27,34 @@ export default function ChatScreen() {
 
   const sendMessage = () => {
     if (!chatMessage.trim() || !wsRef.current) return;
-    const msg = { type: 'message', from: userId, to: selectedUserId, text: chatMessage, time: new Date() };
-    wsRef.current.send(JSON.stringify(msg));
-    setMessages(prev => [...prev, msg]);
-    setChatMessage('');
+    wsRef.current.send(JSON.stringify({ type:"message", from:userId, to:selectedUserId, text:chatMessage, time:new Date() }));
+    setMessages(prev => [...prev, { from:userId, text:chatMessage, time:new Date() }]);
+    setChatMessage("");
   };
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: '#ECE5DD' }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={90}>
+    <View style={{ flex:1, padding:10 }}>
       <FlatList
-        ref={flatRef}
+        ref={flatListRef}
         data={messages}
-        keyExtractor={(item, i) => i.toString()}
-        contentContainerStyle={{ padding: 10 }}
-        onContentSizeChange={() => flatRef.current?.scrollToEnd({ animated: true })}
-        renderItem={({ item }) => {
-          const isMe = item.from === userId;
-          return (
-            <View style={[styles.messageContainer, isMe ? styles.messageRight : styles.messageLeft]}>
-              <Text style={styles.messageText}>{item.text}</Text>
-              <Text style={styles.timeText}>{new Date(item.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
-            </View>
-          );
-        }}
+        keyExtractor={(_,i)=>i.toString()}
+        renderItem={({item})=>(
+          <View style={[styles.msg, item.from===userId?styles.right:styles.left]}>
+            <Text style={{color:item.from===userId?'#fff':'#000'}}>{item.text}</Text>
+          </View>
+        )}
+        onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated:true })}
       />
-      <View style={styles.inputContainer}>
-        <TextInput placeholder="Type a message" value={chatMessage} onChangeText={setChatMessage} style={styles.inputBox} />
-        <TouchableOpacity style={styles.sendButton} onPress={sendMessage}>
-          <Text style={{ color: '#fff', fontWeight: 'bold' }}>Send</Text>
-        </TouchableOpacity>
+      <View style={{ flexDirection:'row', alignItems:'center' }}>
+        <TextInput style={{ flex:1,borderWidth:1,padding:10,borderRadius:25 }} value={chatMessage} onChangeText={setChatMessage} />
+        <TouchableOpacity onPress={sendMessage}><Ionicons name="send" size={28} color="#25D366"/></TouchableOpacity>
       </View>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  messageContainer: { maxWidth: '70%', padding: 10, marginVertical: 5, borderRadius: 10 },
-  messageLeft: { backgroundColor: '#fff', alignSelf: 'flex-start', borderTopLeftRadius: 0 },
-  messageRight: { backgroundColor: '#25D366', alignSelf: 'flex-end', borderTopRightRadius: 0 },
-  messageText: { fontSize: 16, color: '#000' },
-  timeText: { fontSize: 10, color: '#555', textAlign: 'right', marginTop: 2 },
-  inputContainer: { flexDirection: 'row', padding: 5, backgroundColor: '#fff', alignItems: 'center' },
-  inputBox: { flex: 1, backgroundColor: '#f0f0f0', borderRadius: 25, paddingHorizontal: 15, paddingVertical: 8, fontSize: 16, marginRight: 5 },
-  sendButton: { backgroundColor: '#25D366', width: 60, height: 45, borderRadius: 25, justifyContent: 'center', alignItems: 'center' },
+  msg:{ padding:10, marginVertical:5, borderRadius:10, maxWidth:'70%' },
+  left:{ backgroundColor:'#eee', alignSelf:'flex-start' },
+  right:{ backgroundColor:'#25D366', alignSelf:'flex-end' },
 });
