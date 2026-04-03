@@ -1,113 +1,92 @@
-const express = require('express');
-const WebSocket = require('ws');
-const mongoose = require('mongoose');
-const cors = require('cors');
+const express = require("express");
+const WebSocket = require("ws");
+const mongoose = require("mongoose");
+const cors = require("cors");
 
 const app = express();
 app.use(express.json());
 app.use(cors());
 
-// ===== CONNECT DB =====
-mongoose.connect(process.env.MONGO_URI);
+mongoose.connect(process.env.MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true });
 
 // ===== MODELS =====
-const User = mongoose.model('User', {
-  username: String,
-  password: String,
+const User = mongoose.model("User", { username: String, password: String, avatar: String });
+const Message = mongoose.model("Message", { from: String, to: String, text: String, time: Date });
+
+// ===== AUTH ROUTES =====
+app.post("/register", async (req, res) => {
+  try {
+    const user = new User(req.body);
+    await user.save();
+    res.status(201).send("User created");
+  } catch {
+    res.status(400).send("Registration failed");
+  }
 });
 
-const Message = mongoose.model('Message', {
-  from: String,
-  to: String,
-  text: String,
-  time: Date
-});
-
-// ===== REGISTER =====
-app.post('/register', async (req, res) => {
-  const user = new User(req.body);
-  await user.save();
-  res.send('User created');
-});
-
-// ===== LOGIN =====
-app.post('/login', async (req, res) => {
+app.post("/login", async (req, res) => {
   const user = await User.findOne(req.body);
-  if (!user) return res.status(400).send('Invalid');
-
-  res.json({ userId: user._id });
+  if (!user) return res.status(400).send("Invalid credentials");
+  res.json({ userId: user._id, username: user.username, avatar: user.avatar });
 });
 
-// ===== GET USERS =====
-app.get('/users', async (req, res) => {
-  const users = await User.find({}, '_id username');
+// ===== USERS =====
+app.get("/users", async (req, res) => {
+  const users = await User.find({}, "_id username avatar");
   res.json(users);
 });
 
-// ===== GET MESSAGES =====
-app.get('/messages/:user1/:user2', async (req, res) => {
+// ===== MESSAGES =====
+app.get("/messages/:user1/:user2", async (req, res) => {
   const { user1, user2 } = req.params;
-
   const messages = await Message.find({
     $or: [
       { from: user1, to: user2 },
       { from: user2, to: user1 }
     ]
   }).sort({ time: 1 });
-
   res.json(messages);
 });
 
-// ===== SERVER =====
-const server = app.listen(3000, () => {
-  console.log('Server running');
-});
-
-// ===== WEBSOCKET =====
+// ===== SERVER & WEBSOCKET =====
+const server = app.listen(process.env.PORT || 3000, () => console.log("Server running"));
 const wss = new WebSocket.Server({ server });
 
 let clients = {};
 
-wss.on('connection', (ws) => {
-
-  ws.on('message', async (msg) => {
+wss.on("connection", (ws) => {
+  ws.on("message", async (msg) => {
     const data = JSON.parse(msg);
 
-    // AUTH
-    if (data.type === 'auth') {
+    if (data.type === "auth") {
       ws.userId = data.userId;
       clients[ws.userId] = ws;
 
-      // broadcast online users
+      // Broadcast online users
       const onlineUsers = Object.keys(clients);
-
-      wss.clients.forEach(client => {
-        client.send(JSON.stringify({
-          type: "online",
-          users: onlineUsers
-        }));
+      wss.clients.forEach((client) => {
+        client.send(JSON.stringify({ type: "online", users: onlineUsers }));
       });
     }
 
-    // MESSAGE
-    if (data.type === 'message') {
-      const message = new Message({
-        from: data.from,
-        to: data.to,
-        text: data.text,
-        time: new Date()
-      });
-
+    if (data.type === "message") {
+      const message = new Message({ ...data, time: new Date() });
       await message.save();
 
-      // send to receiver
-      if (clients[data.to]) {
-        clients[data.to].send(JSON.stringify(message));
-      }
+      if (clients[data.to]) clients[data.to].send(JSON.stringify(message));
+    }
+
+    if (data.type === "typing") {
+      if (clients[data.to]) clients[data.to].send(JSON.stringify({ type: "typing", from: data.from }));
     }
   });
 
-  ws.on('close', () => {
+  ws.on("close", () => {
     delete clients[ws.userId];
+    // Update online users
+    const onlineUsers = Object.keys(clients);
+    wss.clients.forEach((client) => {
+      client.send(JSON.stringify({ type: "online", users: onlineUsers }));
+    });
   });
 });
