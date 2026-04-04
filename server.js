@@ -69,6 +69,29 @@ app.post("/login", async (req, res) => {
   }
 });
 
+app.post("/updateProfile", async (req, res) => {
+  try {
+    const { userId, username, avatar, tagline } = req.body;
+
+    // ✅ correct: use _id
+    const user = await User.findById(userId);
+    if (!user) return res.status(400).send("User not found");
+
+    // ✅ update fields
+    if (username) user.username = username;
+    if (avatar) user.avatar = avatar;
+    if (tagline) user.tagline = tagline;
+
+    await user.save();
+
+    // ✅ correct response
+    res.send({ message: "Profile updated", user });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send(err.message);
+  }
+});
+
 // Users
 app.get("/users", async (req, res) => {
   const users = await User.find({});

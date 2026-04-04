@@ -1,15 +1,16 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, use } from "react";
 import { View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet } from "react-native";
-import { useSearchParams } from "expo-router";
+import { useLocalSearchParams } from "expo-router";
+import { useUser } from "../../../context/UserContext";
 import axios from "axios";
 import { Ionicons } from "@expo/vector-icons";
 
 const SERVER_URL = "https://chat-server-jznv.onrender.com";
 
 export default function ChatScreen() {
-  const params = useSearchParams();
-  const userId = params.userId;
-  const selectedUserId = params.id;
+  const userId = useUser();
+  const id = useLocalSearchParams();
+  const selectedUserId = id as string;
   const [messages, setMessages] = useState([]);
   const [chatMessage, setChatMessage] = useState("");
   const wsRef = useRef<WebSocket | null>(null);
