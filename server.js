@@ -92,6 +92,14 @@ app.post("/updateProfile", async (req, res) => {
   }
 });
 
+app.post("/upload", upload.single("file"), (req, res) => {
+  if (!req.file) return res.status(400).send("No file uploaded");
+
+  res.send({
+    url: `https://chat-server-jznv.onrender.com/uploads/${req.file.filename}`, // ✅ FIXED
+  });
+});
+
 // Users
 app.get("/users", async (req, res) => {
   const users = await User.find({});

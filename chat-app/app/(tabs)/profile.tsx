@@ -12,19 +12,41 @@ export default function Profile() {
   const router = useRouter();
   const { userId, username, setUsername, avatar, setAvatar, tagline, setTagline } = useUser();
 
-const pickImage = async () => {
-  const result = await ImagePicker.launchImageLibraryAsync({
-    mediaTypes: "Images", // ✅ use string "Images", not ImagePicker.MediaType.Images
-    allowsEditing: true,
-    quality: 1,
-  });
+// ✅ PICK IMAGE (FIXED)
+  const pickImage = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"], // ✅ FIX (no more error)
+      allowsEditing: true,
+      quality: 1,
+    });
 
-  if (!result.canceled) {
-    const uri = result.assets[0].uri;
-    // do something with uri
-  }
-};
+    if (!result.canceled) {
+      uploadImage(result.assets[0].uri);
+    }
+  };
 
+    // ✅ UPLOAD IMAGE TO SERVER
+  const uploadImage = async (uri: string) => {
+    try {
+      const formData = new FormData();
+
+      formData.append("file", {
+        uri,
+        name: "avatar.jpg",
+        type: "image/jpeg",
+      } as any);
+
+      const res = await axios.post(`${SERVER_URL}/upload`, formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+
+      setAvatar(res.data.url);
+    } catch (err) {
+      console.log(err);
+      Alert.alert("Upload failed");
+    }
+  };
+  
   const saveProfile = async () => {
     try {
       await axios.post(`${SERVER_URL}/updateProfile`, { userId, username, avatar, tagline });
