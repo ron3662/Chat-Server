@@ -38,29 +38,56 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 // Register
-app.post("/register", async (req, res) => {
-  try {
-    const { username, password } = req.body;
-    if (!username || !password) return res.status(400).send("Username & password required");
-    const user = new User({ username, password, lastActive: new Date(), avatar: "", tagline: "" });
-    await user.save();
-    res.send({ userId: user._id });
-  } catch (err) {
-    console.error(err);
-    res.status(500).send(err.message);
+app.post("/register", upload.single("file"), async (req, res) => {
+  try{
+  const { username, password, tagline } = req.body;
+
+  let avatar = "";
+
+  if (req.file) {
+    avatar = `https://chat-server-jznv.onrender.com/uploads/${req.file.filename}`;
   }
-});
+
+  const user = new User({
+    username,
+    password,
+    avatar,
+    tagline,
+  });
+
+  await user.save();
+
+  res.send({
+    userId: user._id,
+    username,
+    avatar,
+    tagline,
+  });
+}catch(err){
+  console.error(err);
+  res.status(500).send(err.message);
+}});
 
 // Login
-app.post("/login", async (req, res) => {
+app.post("/login", upload.single("file"), async (req, res) => {
   try {
-    const { username, password } = req.body;
+    const { username, password, tagline } = req.body;
     if (!username || !password) return res.status(400).send("Username & password required");
 
     const user = await User.findOne({ username, password });
     if (!user) return res.status(400).send("Invalid credentials");
 
+    let avatar = "";
+
+    if (req.file) 
+    {
+      avatar = `https://chat-server-jznv.onrender.com/uploads/${req.file.filename}`;
+    }
+    
     user.lastActive = new Date();
+    if (avatar) user.avatar = avatar;
+    if (tagline) user.tagline = tagline;
+
     await user.save();
     res.send({ userId: user._id, username: user.username, avatar: user.avatar, tagline: user.tagline });
   } catch (err) {

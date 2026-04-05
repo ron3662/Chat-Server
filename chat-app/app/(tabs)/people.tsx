@@ -6,7 +6,7 @@ import { useUser } from "../../context/UserContext";
 const SERVER_URL = "https://chat-server-jznv.onrender.com";
 
 export default function People() {
-  const { userId } = useUser();
+  const { userId, saveUser } = useUser();
   const navigation = useNavigation();
   const [onlineUsers, setOnlineUsers] = useState<string[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
@@ -16,7 +16,11 @@ export default function People() {
     ws.onopen = () => ws.send(JSON.stringify({ type: "auth", userId }));
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
-      if (data.type === "online") setOnlineUsers(data.users.filter(u => u !== userId));
+      if (data.type === "online") 
+      {
+
+        setOnlineUsers(data.users.filter(u => u !== userId));
+      }
     };
     wsRef.current = ws;
     return () => ws.close();

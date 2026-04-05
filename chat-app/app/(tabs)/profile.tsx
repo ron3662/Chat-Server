@@ -10,7 +10,7 @@ const SERVER_URL = "https://chat-server-jznv.onrender.com";
 
 export default function Profile() {
   const router = useRouter();
-  const { userId, username, setUsername, avatar, setAvatar, tagline, setTagline } = useUser();
+  const { userId, username, setUsername, avatar, setAvatar, tagline, setTagline, saveUser, logout } = useUser();
 
 // ✅ PICK IMAGE (FIXED)
   const pickImage = async () => {
@@ -46,20 +46,19 @@ export default function Profile() {
       Alert.alert("Upload failed");
     }
   };
-  
+
   const saveProfile = async () => {
     try {
       await axios.post(`${SERVER_URL}/updateProfile`, { userId, username, avatar, tagline });
+      await saveUser({ userId, username, avatar, tagline });
       Alert.alert("Profile updated");
     } catch (e) {
       Alert.alert("Failed to update profile");
     }
   };
 
-  const logout = () => {
-    setUsername("");
-    setAvatar("");
-    setTagline("");
+  const setLogout = () => {
+    logout();
     router.replace("/");
   };
 
@@ -78,7 +77,7 @@ export default function Profile() {
         <Text style={styles.buttonText}>Save</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity style={[styles.button, { backgroundColor: "red" }]} onPress={logout}>
+      <TouchableOpacity style={[styles.button, { backgroundColor: "red" }]} onPress={setLogout}>
         <Text style={styles.buttonText}>Logout</Text>
       </TouchableOpacity>
     </View>
