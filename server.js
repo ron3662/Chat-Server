@@ -98,37 +98,6 @@ app.post("/login", upload.single("file"), async (req, res) => {
   }
 });
 
-app.post("/updateProfile", async (req, res) => {
-  try {
-    const { userId, username, avatar, tagline } = req.body;
-
-    // ✅ correct: use _id
-    const user = await User.findById(userId);
-    if (!user) return res.status(400).send("User not found");
-
-    // ✅ update fields
-    if (username) user.username = username;
-    if (avatar) user.avatar = avatar;
-    if (tagline) user.tagline = tagline;
-
-    await user.save();
-
-    // ✅ correct response
-    res.send({ message: "Profile updated", user });
-  } catch (err) {
-    console.error(err);
-    res.status(500).send(err.message);
-  }
-});
-
-app.post("/upload", upload.single("file"), (req, res) => {
-  if (!req.file) return res.status(400).send("No file uploaded");
-
-  res.send({
-    url: `https://chat-server-jznv.onrender.com/uploads/${req.file.filename}`, // ✅ FIXED
-  });
-});
-
 // Users
 app.get("/users", async (req, res) => {
   try {
