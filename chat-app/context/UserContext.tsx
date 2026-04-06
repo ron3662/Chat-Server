@@ -6,6 +6,8 @@ type UserContextType = {
   setUserId: (id: string) => void;
   username: string;
   setUsername: (name: string) => void;
+  password: string;
+  setPassword: (pwd: string) => void;
   avatar: string;
   setAvatar: (url: string) => void;
   tagline: string;
@@ -21,6 +23,8 @@ const UserContext = createContext<UserContextType>({
   setUserId: () => {},
   username: "",
   setUsername: () => {},
+  password: "",
+  setPassword: () => {},
   avatar: "",
   setAvatar: () => {},
   tagline: "",
@@ -36,6 +40,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   const [avatar, setAvatar] = useState("");
   const [tagline, setTagline] = useState("");
   const [loading, setLoading] = useState(true);
+  const [password, setPassword] = useState("");
 
   // ✅ LOAD USER ON APP START
   useEffect(() => {
@@ -50,6 +55,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       setUsername(user.username);
       setAvatar(user.avatar);
       setTagline(user.tagline);
+      setPassword(user.password);
     }
 
     setLoading(false); // ✅ important
@@ -61,7 +67,7 @@ const saveUser = async (user: any) => {
   setUsername(user.username);
   setAvatar(user.avatar);
   setTagline(user.tagline);
-
+  setPassword(user.password);
   await SecureStore.setItemAsync("user", JSON.stringify(user));
 };
 
@@ -72,11 +78,12 @@ const saveUser = async (user: any) => {
     setUsername("");
     setAvatar("");
     setTagline("");
+    setPassword("");
   };
 
   return (
     <UserContext.Provider
-      value={{ userId, setUserId, username, setUsername, avatar, setAvatar, tagline, setTagline, saveUser, logout, loading, }}
+      value={{ userId, setUserId, username, setUsername, avatar, setAvatar, tagline, setTagline, password, setPassword, saveUser, logout, loading }}
     >
       {children}
     </UserContext.Provider>

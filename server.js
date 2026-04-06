@@ -62,6 +62,7 @@ app.post("/register", upload.single("file"), async (req, res) => {
     username,
     avatar,
     tagline,
+    password,
   });
 }catch(err){
   console.error(err);
@@ -83,7 +84,7 @@ app.post("/login", upload.single("file"), async (req, res) => {
     {
       avatar = `https://chat-server-jznv.onrender.com/uploads/${req.file.filename}`;
     }
-    
+
     user.lastActive = new Date();
     if (avatar) user.avatar = avatar;
     if (tagline) user.tagline = tagline;
