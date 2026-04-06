@@ -39,60 +39,61 @@ const upload = multer({ storage });
 
 // Register
 app.post("/register", upload.single("file"), async (req, res) => {
-  try{
-  const { username, password, tagline } = req.body;
+  try {
+    const { username, password, tagline } = req.body;
 
-  let avatar = "";
+    const existing = await User.findOne({ username });
+    if (existing) return res.status(400).send("User already exists");
 
-  if (req.file) {
-    avatar = `https://chat-server-jznv.onrender.com/uploads/${req.file.filename}`;
+    let avatar = "";
+    if (req.file) {
+      avatar = `https://chat-server-jznv.onrender.com/uploads/${req.file.filename}`;
+    }
+
+    const user = new User({ username, password, avatar, tagline });
+    await user.save();
+
+    res.send({
+      userId: user._id,
+      username,
+      avatar,
+      tagline,
+    });
+  } catch (err) {
+    res.status(500).send(err.message);
   }
-
-  const user = new User({
-    username,
-    password,
-    avatar,
-    tagline,
-  });
-
-  await user.save();
-
-  res.send({
-    userId: user._id,
-    username,
-    avatar,
-    tagline,
-    password,
-  });
-}catch(err){
-  console.error(err);
-  res.status(500).send(err.message);
-}});
+});
 
 // Login
 app.post("/login", upload.single("file"), async (req, res) => {
   try {
     const { username, password, tagline } = req.body;
-    if (!username || !password) return res.status(400).send("Username & password required");
 
-    const user = await User.findOne({ username, password });
-    if (!user) return res.status(400).send("Invalid credentials");
+    const user = await User.findOne({ username });
+    if (!user) return res.status(400).send("User not found");
 
-    let avatar = "";
+    if (user.password !== password)
+      return res.status(400).send("Wrong password");
 
-    if (req.file) 
-    {
+    let avatar = user.avatar;
+
+    if (req.file) {
       avatar = `https://chat-server-jznv.onrender.com/uploads/${req.file.filename}`;
+      user.avatar = avatar;
     }
 
-    user.lastActive = new Date();
-    if (avatar) user.avatar = avatar;
     if (tagline) user.tagline = tagline;
 
+    user.lastActive = new Date();
     await user.save();
-    res.send({ userId: user._id, username: user.username, avatar: user.avatar, tagline: user.tagline });
+
+    res.send({
+      userId: user._id,
+      username: user.username,
+      avatar: user.avatar,
+      tagline: user.tagline,
+    });
   } catch (err) {
-    console.error(err);
     res.status(500).send(err.message);
   }
 });
@@ -130,8 +131,20 @@ app.post("/upload", upload.single("file"), (req, res) => {
 
 // Users
 app.get("/users", async (req, res) => {
-  const users = await User.find({});
-  res.send(users);
+  try {
+    const users = await User.find({}, "-password -__v");
+
+    const formatted = users.map((u) => ({
+      id: u._id,
+      username: u.username,
+      avatar: u.avatar,
+      tagline: u.tagline,
+    }));
+
+    res.status(200).json(formatted);
+  } catch (err) {
+    res.status(500).json({ message: "Failed to fetch users" });
+  }
 });
 
 // Messages

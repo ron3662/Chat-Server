@@ -205,7 +205,8 @@ export default function Home() {
     try {
       const formData = new FormData();
 
-      if (localAvatar !== avatar) {
+      // only send avatar if user explicitly changed it
+      if (localAvatar && localAvatar.startsWith("file")) {
         formData.append("file", {
           uri: localAvatar,
           name: "avatar.jpg",
