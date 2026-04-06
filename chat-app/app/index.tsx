@@ -10,6 +10,9 @@ import {
   Animated,
   PanResponder,
   Dimensions,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import axios from "axios";
@@ -24,7 +27,6 @@ const SERVER_URL = "https://chat-server-jznv.onrender.com";
 
 export default function Home() {
   const router = useRouter();
-
   const {
     userId,
     username,
@@ -37,26 +39,25 @@ export default function Home() {
   } = useUser();
 
   const [localUsername, setLocalUsername] = useState("");
-  const [localpassword, setPassword] = useState("");
+  const [localPassword, setLocalPassword] = useState("");
   const [localTagline, setLocalTagline] = useState(tagline || "");
   const [localAvatar, setLocalAvatar] = useState(avatar || "");
-  const [focused, setFocused] = useState("");
 
   const DEFAULT_AVATAR =
     "https://ui-avatars.com/api/?name=User&background=E5E5EA&color=555";
 
-  // Fade
+  // Fade animation
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   // Parallax
   const tiltX = useRef(new Animated.Value(0)).current;
   const tiltY = useRef(new Animated.Value(0)).current;
 
-  // Heart header animation
+  // Header heart animation
   const heartScale = useRef(new Animated.Value(1)).current;
   const heartY = useRef(new Animated.Value(0)).current;
 
-  // 💗 FLOATING HEARTS
+  // Floating hearts
   const hearts = Array.from({ length: 6 }).map(() => ({
     x: useRef(new Animated.Value(Math.random() * width)).current,
     y: useRef(new Animated.Value(height + Math.random() * 200)).current,
@@ -102,7 +103,7 @@ export default function Home() {
       ])
     ).start();
 
-    // 💗 Floating hearts animation
+    // Floating hearts animation
     hearts.forEach((heart) => {
       Animated.loop(
         Animated.sequence([
@@ -121,12 +122,6 @@ export default function Home() {
     });
   }, []);
 
-  // Haptics
-  const handlePress = async (action: () => void) => {
-    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    action();
-  };
-
   // Parallax
   const panResponder = useRef(
     PanResponder.create({
@@ -136,21 +131,17 @@ export default function Home() {
         tiltY.setValue(g.dy / 20);
       },
       onPanResponderRelease: () => {
-        Animated.spring(tiltX, {
-          toValue: 0,
-          tension: 80,
-          friction: 6,
-          useNativeDriver: true,
-        }).start();
-        Animated.spring(tiltY, {
-          toValue: 0,
-          tension: 80,
-          friction: 6,
-          useNativeDriver: true,
-        }).start();
+        Animated.spring(tiltX, { toValue: 0, tension: 80, friction: 6, useNativeDriver: true }).start();
+        Animated.spring(tiltY, { toValue: 0, tension: 80, friction: 6, useNativeDriver: true }).start();
       },
     })
   ).current;
+
+  // Haptics helper
+  const handlePress = async (action: () => void) => {
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    action();
+  };
 
   // Image picker
   const pickImage = async () => {
@@ -168,7 +159,7 @@ export default function Home() {
   useEffect(() => {
     if (!loading && userId !== "") {
       setLocalUsername(username);
-      setPassword(password);
+      setLocalPassword(password);
       setLocalTagline(tagline);
       setLocalAvatar(avatar);
     }
@@ -177,29 +168,17 @@ export default function Home() {
   const register = async () => {
     try {
       const formData = new FormData();
-
       if (localAvatar) {
-        formData.append("file", {
-          uri: localAvatar,
-          name: "avatar.jpg",
-          type: "image/jpeg",
-        } as any);
+        formData.append("file", { uri: localAvatar, name: "avatar.jpg", type: "image/jpeg" } as any);
       }
-
       formData.append("username", localUsername);
-      formData.append("password", localpassword);
+      formData.append("password", localPassword);
       formData.append("tagline", localTagline);
 
-      const res = await axios.post(`${SERVER_URL}/register`, formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-      const userData = {
-        ...res.data,
-        password: localpassword,
-      };
-      await saveUser(userData);
+      const res = await axios.post(`${SERVER_URL}/register`, formData, { headers: { "Content-Type": "multipart/form-data" } });
+      await saveUser({ ...res.data, password: localPassword });
       Alert.alert("Registered successfully");
-    } catch(error) {
+    } catch (error) {
       Alert.alert("Registration failed");
     }
   };
@@ -207,31 +186,19 @@ export default function Home() {
   const enterApp = async () => {
     try {
       const formData = new FormData();
-
-      // only send avatar if user explicitly changed it
       if (localAvatar && localAvatar.startsWith("file")) {
-        formData.append("file", {
-          uri: localAvatar,
-          name: "avatar.jpg",
-          type: "image/jpeg",
-        } as any);
+        formData.append("file", { uri: localAvatar, name: "avatar.jpg", type: "image/jpeg" } as any);
       }
-
-      if (localTagline !== tagline) {
-        formData.append("tagline", localTagline);
-      }
-
+      if (localTagline !== tagline) formData.append("tagline", localTagline);
       formData.append("username", localUsername);
-      formData.append("password", localpassword);
+      formData.append("password", localPassword);
 
-      const res = await axios.post(`${SERVER_URL}/login`, formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-
+      const res = await axios.post(`${SERVER_URL}/login`, formData, { headers: { "Content-Type": "multipart/form-data" } });
       await saveUser(res.data);
       router.push("/people");
-    }  catch (error) {
-}
+    } catch (error) {
+      Alert.alert("Login failed");
+    }
   };
 
   const AnimatedButton = ({ children, style, onPress }: any) => {
@@ -242,22 +209,8 @@ export default function Home() {
         <TouchableOpacity
           style={style}
           onPress={() => handlePress(onPress)}
-          onPressIn={() =>
-            Animated.spring(scale, {
-              toValue: 0.94,
-              tension: 120,
-              friction: 4,
-              useNativeDriver: true,
-            }).start()
-          }
-          onPressOut={() =>
-            Animated.spring(scale, {
-              toValue: 1,
-              tension: 120,
-              friction: 6,
-              useNativeDriver: true,
-            }).start()
-          }
+          onPressIn={() => Animated.spring(scale, { toValue: 0.94, tension: 120, friction: 4, useNativeDriver: true }).start()}
+          onPressOut={() => Animated.spring(scale, { toValue: 1, tension: 120, friction: 6, useNativeDriver: true }).start()}
         >
           {children}
         </TouchableOpacity>
@@ -266,217 +219,104 @@ export default function Home() {
   };
 
   return (
-    <LinearGradient
-      colors={["#FDEBEB", "#E0C3FC"]}
+    <KeyboardAvoidingView
       style={{ flex: 1 }}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
     >
-      {/* 💗 Floating hearts */}
-      {hearts.map((h, i) => (
-        <Animated.Text
-          key={i}
-          style={{
-            position: "absolute",
-            fontSize: 20 + Math.random() * 10,
-            transform: [
-              { translateX: h.x },
-              { translateY: h.y },
-              { scale: h.scale },
-            ],
-            opacity: h.opacity,
-          }}
-        >
-          💗
-        </Animated.Text>
-      ))}
-
-      <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
-
-        {/* 💘 HEADER CONTAINER */}
-        <View style={styles.headerBox}>
-          <Text style={styles.youText}>You</Text>
-
-          <View style={styles.meRow}>
+      <ScrollView
+        contentContainerStyle={{ flexGrow: 1 }}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        <LinearGradient colors={["#FDEBEB", "#E0C3FC"]} style={{ flex: 1 }}>
+          {hearts.map((h, i) => (
             <Animated.Text
-              style={[
-                styles.heart,
-                {
-                  transform: [
-                    { scale: heartScale },
-                    { translateY: heartY },
-                  ],
-                },
-              ]}
-            >
-              ❤️
-            </Animated.Text>
-
-            <Text style={styles.meText}>Me</Text>
-          </View>
-        </View>
-
-        {/* GLASS CARD */}
-        <BlurView intensity={60} tint="light" style={styles.glassCard}>
-
-          <TouchableOpacity onPress={pickImage}>
-            <Animated.View
-              {...panResponder.panHandlers}
+              key={i}
               style={{
-                transform: [{ translateX: tiltX }, { translateY: tiltY }],
+                position: "absolute",
+                fontSize: 20 + Math.random() * 10,
+                transform: [{ translateX: h.x }, { translateY: h.y }, { scale: h.scale }],
+                opacity: h.opacity,
               }}
             >
-              <Image
-                source={{
-                  uri: localAvatar || avatar || DEFAULT_AVATAR,
-                }}
-                style={styles.avatar}
-              />
-            </Animated.View>
-            <Text style={styles.editText}>Edit Photo</Text>
-          </TouchableOpacity>
+              💗
+            </Animated.Text>
+          ))}
 
-          <TextInput
-            placeholder="Your tagline..."
-            value={localTagline}
-            onChangeText={setLocalTagline}
-            style={styles.input}
-          />
+          <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
+            {/* Header */}
+            <View style={styles.headerBox}>
+              <Text style={styles.youText}>You</Text>
+              <View style={styles.meRow}>
+                <Animated.Text style={[styles.heart, { transform: [{ scale: heartScale }, { translateY: heartY }] }]}>
+                  ❤️
+                </Animated.Text>
+                <Text style={styles.meText}>Me</Text>
+              </View>
+            </View>
 
-          {userId === "" && (
-            <>
-              <TextInput
-                placeholder="Username"
-                value={localUsername}
-                onChangeText={setLocalUsername}
-                style={styles.input}
-              />
+            {/* Glass Card */}
+            <BlurView intensity={60} tint="light" style={styles.glassCard}>
+              <TouchableOpacity onPress={pickImage}>
+                <Animated.View {...panResponder.panHandlers} style={{ transform: [{ translateX: tiltX }, { translateY: tiltY }] }}>
+                  <Image source={{ uri: localAvatar || avatar || DEFAULT_AVATAR }} style={styles.avatar} />
+                </Animated.View>
+                <Text style={styles.editText}>Edit Photo</Text>
+              </TouchableOpacity>
 
-              <TextInput
-                placeholder="Password"
-                secureTextEntry
-                value={localpassword}
-                onChangeText={setPassword}
-                style={styles.input}
-              />
+              <TextInput placeholder="Your tagline..." value={localTagline} onChangeText={setLocalTagline} style={styles.input} />
 
-              <AnimatedButton style={styles.button} onPress={enterApp}>
-                <Text style={styles.buttonText}>Login</Text>
-              </AnimatedButton>
+              {userId === "" && (
+                <>
+                  <TextInput placeholder="Username" value={localUsername} onChangeText={setLocalUsername} style={styles.input} />
+                  <TextInput placeholder="Password" secureTextEntry value={localPassword} onChangeText={setLocalPassword} style={styles.input} />
 
-              <AnimatedButton style={styles.button} onPress={register}>
-                <Text style={styles.buttonText}>Register</Text>
-              </AnimatedButton>
-            </>
-          )}
+                  <AnimatedButton style={styles.button} onPress={enterApp}>
+                    <Text style={styles.buttonText}>Login</Text>
+                  </AnimatedButton>
 
-          {userId !== "" && (
-            <>
-              <Text style={styles.username}>{localUsername}</Text>
+                  <AnimatedButton style={styles.button} onPress={register}>
+                    <Text style={styles.buttonText}>Register</Text>
+                  </AnimatedButton>
+                </>
+              )}
 
-              <AnimatedButton style={styles.button} onPress={enterApp}>
-                <Text style={styles.buttonText}>Enter</Text>
-              </AnimatedButton>
+              {userId !== "" && (
+                <>
+                  <Text style={styles.username}>{localUsername}</Text>
 
-              <AnimatedButton style={styles.logoutButton} onPress={logout}>
-                <Text style={styles.logoutText}>Logout</Text>
-              </AnimatedButton>
-            </>
-          )}
+                  <AnimatedButton style={styles.button} onPress={enterApp}>
+                    <Text style={styles.buttonText}>Enter</Text>
+                  </AnimatedButton>
 
-        </BlurView>
-      </Animated.View>
-    </LinearGradient>
+                  <AnimatedButton style={styles.logoutButton} onPress={logout}>
+                    <Text style={styles.logoutText}>Logout</Text>
+                  </AnimatedButton>
+                </>
+              )}
+            </BlurView>
+          </Animated.View>
+        </LinearGradient>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 20,
-  },
-
-  headerBox: {
-    alignItems: "center",
-    marginTop: 60,
-    marginBottom: 20,
-  },
-
-  youText: {
-    fontSize: 48,
-    fontWeight: "700",
-    color: "#FF4E50",
-  },
-
-  meRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-
-  meText: {
-    fontSize: 48,
-    fontWeight: "700",
-    marginLeft: 8,
-    color: "#FF4E50",
-  },
-
-  heart: {
-    fontSize: 38,
-  },
-
-  glassCard: {
-    backgroundColor: "rgba(255,255,255,0.6)",
-    borderRadius: 24,
-    padding: 20,
-  },
-
-  avatar: {
-    width: 160,
-    height: 160,
-    borderRadius: 80,
-    alignSelf: "center",
-  },
-
-  editText: {
-    textAlign: "center",
-    color: "#007AFF",
-    marginTop: 8,
-  },
-
-  input: {
-    backgroundColor: "#fff",
-    padding: 14,
-    borderRadius: 12,
-    marginVertical: 8,
-  },
-
-  button: {
-    backgroundColor: "#FF4E50",
-    padding: 14,
-    borderRadius: 12,
-    marginTop: 10,
-    alignItems: "center",
-  },
-
-  buttonText: {
-    color: "#fff",
-    fontWeight: "600",
-  },
-
-  logoutButton: {
-    backgroundColor: "#fff",
-    padding: 14,
-    borderRadius: 12,
-    marginTop: 10,
-    alignItems: "center",
-  },
-
-  logoutText: {
-    color: "#FF3B30",
-    fontWeight: "600",
-  },
-
-  username: {
-    textAlign: "center",
-    fontSize: 24,
-    marginVertical: 10,
-  },
+  container: { flex: 1, padding: 20 },
+  headerBox: { alignItems: "center", marginTop: 60, marginBottom: 20 },
+  youText: { fontSize: 48, fontWeight: "700", color: "#FF4E50" },
+  meRow: { flexDirection: "row", alignItems: "center" },
+  meText: { fontSize: 48, fontWeight: "700", marginLeft: 8, color: "#FF4E50" },
+  heart: { fontSize: 38 },
+  glassCard: { backgroundColor: "rgba(255,255,255,0.6)", borderRadius: 24, padding: 20 },
+  avatar: { width: 160, height: 160, borderRadius: 80, alignSelf: "center" },
+  editText: { textAlign: "center", color: "#007AFF", marginTop: 8 },
+  input: { backgroundColor: "#fff", padding: 14, borderRadius: 12, marginVertical: 8 },
+  button: { backgroundColor: "#FF4E50", padding: 14, borderRadius: 12, marginTop: 10, alignItems: "center" },
+  buttonText: { color: "#fff", fontWeight: "600" },
+  logoutButton: { backgroundColor: "#fff", padding: 14, borderRadius: 12, marginTop: 10, alignItems: "center" },
+  logoutText: { color: "#FF3B30", fontWeight: "600" },
+  username: { textAlign: "center", fontSize: 24, marginVertical: 10 },
 });
