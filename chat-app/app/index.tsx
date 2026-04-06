@@ -193,10 +193,13 @@ export default function Home() {
       const res = await axios.post(`${SERVER_URL}/register`, formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
-
-      await saveUser(res.data);
+      const userData = {
+        ...res.data,
+        password: localpassword,
+      };
+      await saveUser(userData);
       Alert.alert("Registered successfully");
-    } catch {
+    } catch(error) {
       Alert.alert("Registration failed");
     }
   };
@@ -226,10 +229,9 @@ export default function Home() {
       });
 
       await saveUser(res.data);
-      router.replace("/people");
-    } catch {
-      Alert.alert("Enter failed");
-    }
+      router.push("/people");
+    }  catch (error) {
+}
   };
 
   const AnimatedButton = ({ children, style, onPress }: any) => {

@@ -67,8 +67,21 @@ const saveUser = async (user: any) => {
   setUsername(user.username);
   setAvatar(user.avatar);
   setTagline(user.tagline);
-  setPassword(user.password);
-  await SecureStore.setItemAsync("user", JSON.stringify(user));
+
+  // ✅ only update password if exists
+  if (user.password) {
+    setPassword(user.password);
+  }
+
+  const existing = await SecureStore.getItemAsync("user");
+  const existingUser = existing ? JSON.parse(existing) : {};
+
+  const mergedUser = {
+    ...existingUser,
+    ...user,
+  };
+
+  await SecureStore.setItemAsync("user", JSON.stringify(mergedUser));
 };
 
   // ✅ LOGOUT
