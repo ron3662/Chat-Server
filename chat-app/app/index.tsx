@@ -24,6 +24,14 @@ import * as Haptics from "expo-haptics";
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
+});
+
 const { width, height } = Dimensions.get("window");
 const SERVER_URL = "https://chat-server-jznv.onrender.com";
 
@@ -168,15 +176,37 @@ export default function Home() {
           finalStatus = status;
         }
         if (finalStatus === 'granted') {
-          const token = (await Notifications.getExpoPushTokenAsync()).data;
+          const token = ( await Notifications.getExpoPushTokenAsync({projectId: "cdf460f7-bbaf-4f90-8a75-927960ce8829",})).data;
           await axios.post(`${SERVER_URL}/update-push-token`, { userId, pushToken: token });
         }
       }
     };
 
   useEffect(() => {
-    registerForPushNotifications();
+    if(userId)
+      registerForPushNotifications();
   }, [userId]);
+
+  useEffect(() => {
+    const subscription = Notifications.addNotificationReceivedListener(notification => {
+      console.log("Notification received:", notification);
+    });
+    const responseListener = Notifications.addNotificationResponseReceivedListener(response => {
+        console.log("Notification clicked:", response);
+
+        const data = response.notification.request.content.data;
+
+        // Example navigation
+        console.log("Notification received:", data);
+        }
+      );
+    return () => {
+      subscription.remove();
+      responseListener.remove();
+    }
+  }, []);
+
+
 
   useEffect(() => {
     if (!loading && userId !== "") {
