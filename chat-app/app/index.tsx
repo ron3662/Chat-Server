@@ -21,6 +21,8 @@ import { useUser } from "../context/UserContext";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
+import * as Notifications from 'expo-notifications';
+import * as Device from 'expo-device';
 
 const { width, height } = Dimensions.get("window");
 const SERVER_URL = "https://chat-server-jznv.onrender.com";
@@ -155,6 +157,26 @@ export default function Home() {
       setLocalAvatar(result.assets[0].uri);
     }
   };
+
+    // Request permissions for push notifications
+    const registerForPushNotifications = async () => {
+      if (Device.isDevice) {
+        const { status: existingStatus } = await Notifications.getPermissionsAsync();
+        let finalStatus = existingStatus;
+        if (existingStatus !== 'granted') {
+          const { status } = await Notifications.requestPermissionsAsync();
+          finalStatus = status;
+        }
+        if (finalStatus === 'granted') {
+          const token = (await Notifications.getExpoPushTokenAsync()).data;
+          await axios.post(`${SERVER_URL}/update-push-token`, { userId, pushToken: token });
+        }
+      }
+    };
+
+  useEffect(() => {
+    registerForPushNotifications();
+  }, [userId]);
 
   useEffect(() => {
     if (!loading && userId !== "") {

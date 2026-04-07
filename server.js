@@ -30,6 +30,7 @@ const User = mongoose.model("User", {
   avatar: String,
   tagline: String,
   lastActive: Date,
+  pushToken: String,
 });
 
 const Message = mongoose.model("Message", {
@@ -73,6 +74,31 @@ app.post("/register", upload.single("file"), async (req, res) => {
   }
 });
 
+app.post("/update-push-token", async (req, res) => {
+  try {
+    const { userId, pushToken } = req.body;
+    await User.findByIdAndUpdate(userId, { pushToken });
+    res.send("Push token updated");
+  } catch (err) {
+    res.status(500).send(err.message);
+  }
+});
+
+async function sendPushNotification(token, title, body) {
+  if (!token) return;
+  const message = {
+    to: token,
+    sound: 'default',
+    title,
+    body,
+    data: { title, body },
+  };
+  await fetch('https://exp.host/--/api/v2/push/send', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(message),
+  });
+} 
 // Login
 app.post("/login", upload.single("file"), async (req, res) => {
   try {
@@ -146,7 +172,11 @@ wss.on("connection", ws => {
     if (data.type === "message") {
       const message = new Message({ ...data, time: new Date() });
       await message.save();
-      if (clients[data.to]) clients[data.to].send(JSON.stringify(message));
+      if (clients[data.to]) 
+        {
+          sendPushNotification((await User.findById(data.to)).pushToken, "New message from " + (await User.findById(data.from)).username, data.text || "Sent you a media message");
+          clients[data.to].send(JSON.stringify(message));
+        }
     }
 
     if (data.type === "typing") {
