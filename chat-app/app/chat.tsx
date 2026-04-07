@@ -10,6 +10,8 @@ import {
   Pressable,
   Modal,
   Platform,
+  KeyboardAvoidingView,
+  SafeAreaView,
   Keyboard,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -18,11 +20,10 @@ import axios from "axios";
 import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
-import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming } from "react-native-reanimated";
-import { SafeAreaView } from "react-native-safe-area-context";
 
 const SERVER_URL = "https://chat-server-jznv.onrender.com";
-const DEFAULT_AVATAR = "https://ui-avatars.com/api/?name=User&background=E5E5EA&color=555";
+const DEFAULT_AVATAR =
+  "https://ui-avatars.com/api/?name=User&background=E5E5EA&color=555";
 
 export default function ChatScreen() {
   const { user } = useLocalSearchParams();
@@ -35,11 +36,7 @@ export default function ChatScreen() {
   const flatListRef = useRef<FlatList>(null);
   const router = useRouter();
 
-  // Popup state
   const [showProfile, setShowProfile] = useState(false);
-
-  // Keyboard height for iOS
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   useEffect(() => {
     // Load messages
@@ -57,15 +54,6 @@ export default function ChatScreen() {
     return () => ws.close();
   }, []);
 
-  // Keyboard events for iOS
-  useEffect(() => {
-    if (Platform.OS === "ios") {
-      const showSub = Keyboard.addListener("keyboardWillShow", (e) => setKeyboardHeight(e.endCoordinates.height));
-      const hideSub = Keyboard.addListener("keyboardWillHide", () => setKeyboardHeight(0));
-      return () => { showSub.remove(); hideSub.remove(); };
-    }
-  }, []);
-
   const sendMessage = () => {
     if (!chatMessage.trim() || !wsRef.current) return;
     wsRef.current.send(JSON.stringify({
@@ -79,13 +67,27 @@ export default function ChatScreen() {
     setChatMessage("");
   };
 
-  return (
-    <View style={{ flex: 1, backgroundColor: "#fdfbfb" }}>
-      {/* 💕 Floating Hearts */}
-      <FloatingHearts />
+  // Scroll to bottom after messages load
+  useEffect(() => {
+    if (messages.length > 0) {
+      setTimeout(() => {
+        flatListRef.current?.scrollToEnd({ animated: false });
+      }, 50);
+    }
+  }, [messages]);
 
+  // Scroll to bottom when keyboard opens
+  useEffect(() => {
+    const showSub = Keyboard.addListener("keyboardDidShow", () => {
+      flatListRef.current?.scrollToEnd({ animated: true });
+    });
+    return () => showSub.remove();
+  }, []);
+
+  return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#fdfbfb" }}>
       {/* 👤 Top header */}
-      <SafeAreaView style={{ zIndex: 1 }}>
+      <SafeAreaView style={{ zIndex: 1, backgroundColor: "#fdfbfb" }}>
         <Pressable onPress={() => setShowProfile(true)}>
           <BlurView intensity={40} tint="light" style={styles.header}>
             <TouchableOpacity onPress={() => router.back()}>
@@ -101,32 +103,41 @@ export default function ChatScreen() {
         </Pressable>
       </SafeAreaView>
 
-      {/* 💬 Messages */}
-      <FlatList
-        ref={flatListRef}
-        data={messages}
-        keyExtractor={(_, i) => i.toString()}
-        contentContainerStyle={{ paddingTop: 20, paddingBottom: 20 }}
-        renderItem={({ item }) => (
-          <View style={[styles.msg, item.from === userId ? styles.right : styles.left]}>
-            <Text style={{ color: item.from === userId ? "#fff" : "#000" }}>{item.text}</Text>
-          </View>
-        )}
-        onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
-      />
-
-      {/* 📝 Chat input */}
-      <View style={[styles.inputContainer, { marginBottom: Platform.OS === "ios" ? keyboardHeight : 0 }]}>
-        <TextInput
-          style={styles.input}
-          value={chatMessage}
-          onChangeText={setChatMessage}
-          placeholder="Type a message..."
+      {/* 💬 Messages + Input */}
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 80}
+      >
+        <FlatList
+          ref={flatListRef}
+          data={messages}
+          keyExtractor={(_, i) => i.toString()}
+          contentContainerStyle={{ paddingTop: 20, paddingBottom: 12 }}
+          renderItem={({ item }) => (
+            <View style={[styles.msg, item.from === userId ? styles.right : styles.left]}>
+              <Text style={{ color: item.from === userId ? "#fff" : "#000" }}>{item.text}</Text>
+            </View>
+          )}
+          onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
         />
-        <TouchableOpacity onPress={sendMessage}>
-          <Ionicons name="send" size={28} color="#25D366" />
-        </TouchableOpacity>
-      </View>
+
+        {/* 📝 Chat input */}
+        <SafeAreaView edges={["bottom"]}>
+          <View style={styles.inputWrapper}>
+            <TextInput
+              style={styles.chatInput}
+              value={chatMessage}
+              onChangeText={setChatMessage}
+              placeholder="Type a message..."
+              placeholderTextColor="#888"
+            />
+            <TouchableOpacity style={styles.sendButton} onPress={sendMessage}>
+              <Ionicons name="send" size={22} color="#fff" />
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </KeyboardAvoidingView>
 
       {/* 💎 Popup */}
       <Modal visible={showProfile} transparent animationType="fade" onRequestClose={() => setShowProfile(false)}>
@@ -144,43 +155,9 @@ export default function ChatScreen() {
           </BlurView>
         </View>
       </Modal>
-    </View>
+    </SafeAreaView>
   );
 }
-
-/* 💕 Floating Hearts */
-function FloatingHearts() {
-  const { width, height } = Dimensions.get("window");
-  const hearts = Array.from({ length: 8 });
-  return (
-    <View style={styles.heartsContainer} pointerEvents="none">
-      {hearts.map((_, i) => <Heart key={i} width={width} height={height} />)}
-    </View>
-  );
-}
-
-function Heart({ width, height }: { width: number; height: number }) {
-  const translateY = useSharedValue(height + 50);
-  const scale = useSharedValue(0.6 + Math.random());
-  const opacity = useSharedValue(0.2 + Math.random() * 0.4);
-  const left = Math.random() * width;
-
-  useEffect(() => {
-    translateY.value = withRepeat(withTiming(-120, { duration: 7000 + Math.random() * 4000 }), -1, false);
-    scale.value = withRepeat(withTiming(scale.value + 0.3, { duration: 1500 }), -1, true);
-  }, []);
-
-  const style = useAnimatedStyle(() => ({
-    position: "absolute",
-    left,
-    transform: [{ translateY: translateY.value }, { scale: scale.value }],
-    opacity: opacity.value,
-  }));
-
-  return <Animated.Text style={[style, styles.heart]}>💖</Animated.Text>;
-}
-
-import { Dimensions } from "react-native";
 
 const styles = StyleSheet.create({
   header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "rgba(0,0,0,0.08)" },
@@ -188,13 +165,37 @@ const styles = StyleSheet.create({
   avatarGlow: { padding: 2, borderRadius: 35 },
   avatar: { width: 50, height: 50, borderRadius: 25 },
   username: { fontSize: 18, fontWeight: "600", marginLeft: 10 },
-  inputContainer: { flexDirection: "row", alignItems: "center", padding: 10, borderTopWidth: 0, backgroundColor: "#fdfbfb" },
-  input: { flex: 1, borderWidth: 1, borderColor: "#ccc", padding: 10, borderRadius: 25, backgroundColor: "#fff", color: "#000", marginRight: 8 },
   msg: { padding: 10, marginVertical: 5, borderRadius: 10, maxWidth: "70%" },
   left: { backgroundColor: "#eee", alignSelf: "flex-start" },
   right: { backgroundColor: "#25D366", alignSelf: "flex-end" },
-  heartsContainer: { position: "absolute", width: "100%", height: "100%" },
-  heart: { fontSize: 22 },
+  inputWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: "#fdfbfb",
+    borderTopWidth: 1,
+    borderTopColor: "#ddd",
+  },
+  chatInput: {
+    flex: 1,
+    backgroundColor: "#fff",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 25,
+    borderWidth: 1,
+    borderColor: "#ccc",
+    color: "#000",
+    marginRight: 8,
+  },
+  sendButton: {
+    backgroundColor: "#25D366",
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: "center",
+    alignItems: "center",
+  },
   softBackdrop: { flex: 1, backgroundColor: "rgba(255,255,255,0.3)" },
   popupContainer: { position: "absolute", top: 0, bottom: 0, left: 0, right: 0, justifyContent: "center", alignItems: "center" },
   popupCard: { width: 280, padding: 24, borderRadius: 40, alignItems: "center", overflow: "hidden", backgroundColor: "rgba(42,33,33,0.8)", borderWidth: 2, borderColor: "rgba(35,30,30,0.5)" },
