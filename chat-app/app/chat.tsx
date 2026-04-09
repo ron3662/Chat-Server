@@ -6,23 +6,16 @@ import {
   TouchableOpacity,
   FlatList,
   StyleSheet,
-  Image,
-  Pressable,
-  Modal,
+  KeyboardAvoidingView,
   Platform,
-  Keyboard,
 } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useUser } from "../context/UserContext";
 import axios from "axios";
 import { Ionicons } from "@expo/vector-icons";
-import { BlurView } from "expo-blur";
-import { LinearGradient } from "expo-linear-gradient";
-import { EmojiPicker } from "emoji-mart-native";
-import * as ImagePicker from "expo-image-picker";
-import * as DocumentPicker from "expo-document-picker";
-import { KeyboardAwareView } from "react-native-keyboard-controller";
+import { Keyboard } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const SERVER_URL = "https://chat-server-jznv.onrender.com";
 
@@ -36,17 +29,31 @@ export default function ChatScreen() {
   const [chatMessage, setChatMessage] = useState("");
   const [inputHeight, setInputHeight] = useState(40);
 
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const [showAttachments, setShowAttachments] = useState(false);
-
   const wsRef = useRef<WebSocket | null>(null);
   const flatListRef = useRef<FlatList>(null);
   const router = useRouter();
-  const insets = useSafeAreaInsets();
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+const insets = useSafeAreaInsets();
+useEffect(() => {
+  const showSub = Keyboard.addListener("keyboardDidShow", (e) => {
+    setKeyboardHeight(e.endCoordinates.height);
+  });
+
+  const hideSub = Keyboard.addListener("keyboardDidHide", () => {
+    setKeyboardHeight(0);
+  });
+
+  return () => {
+    showSub.remove();
+    hideSub.remove();
+  };
+}, []);
 
   useEffect(() => {
-    axios.get(`${SERVER_URL}/messages/${userId}/${selectedUserId}`)
-      .then(res => setMessages(res.data));
+    axios
+      .get(`${SERVER_URL}/messages/${userId}/${selectedUserId}`)
+      .then((res) => setMessages(res.data));
 
     const ws = new WebSocket("wss://chat-server-jznv.onrender.com");
 
@@ -56,15 +63,15 @@ export default function ChatScreen() {
       const data = JSON.parse(e.data);
 
       if (data.type === "seen") {
-        setMessages(prev =>
-          prev.map(msg =>
+        setMessages((prev) =>
+          prev.map((msg) =>
             msg.id === data.messageId ? { ...msg, status: "seen" } : msg
           )
         );
       }
 
       if (data.from === selectedUserId) {
-        setMessages(prev => [...prev, { ...data, status: "delivered" }]);
+        setMessages((prev) => [...prev, { ...data, status: "delivered" }]);
       }
     };
 
@@ -82,54 +89,24 @@ export default function ChatScreen() {
       status: "sent",
     };
 
-    wsRef.current?.send(JSON.stringify({
-      type: "message",
-      ...newMsg,
-      to: selectedUserId,
-    }));
+    wsRef.current?.send(
+      JSON.stringify({
+        type: "message",
+        ...newMsg,
+        to: selectedUserId,
+      })
+    );
 
-    setMessages(prev => [...prev, newMsg]);
+    setMessages((prev) => [...prev, newMsg]);
     setChatMessage("");
   };
 
   useEffect(() => {
     setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 50);
-  }, [messages, showEmojiPicker, showAttachments]);
-
-  const toggleEmojiPicker = () => {
-    setShowAttachments(false);
-    if (showEmojiPicker) setShowEmojiPicker(false);
-    else {
-      Keyboard.dismiss();
-      setShowEmojiPicker(true);
-    }
-  };
-
-  const toggleAttachments = () => {
-    setShowEmojiPicker(false);
-    Keyboard.dismiss();
-    setShowAttachments(prev => !prev);
-  };
-
-  const pickImage = async () => {
-    const res = await ImagePicker.launchImageLibraryAsync();
-    if (!res.canceled) console.log(res.assets[0]);
-  };
-
-  const takePhoto = async () => {
-    const res = await ImagePicker.launchCameraAsync();
-    if (!res.canceled) console.log(res.assets[0]);
-  };
-
-  const pickFile = async () => {
-    const res = await DocumentPicker.getDocumentAsync({});
-    console.log(res);
-  };
+  }, [messages]);
 
   return (
     <SafeAreaView style={{ flex: 1 }}>
-      <KeyboardAwareView style={{ flex: 1 }}>
-        
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()}>
@@ -139,117 +116,91 @@ export default function ChatScreen() {
         </View>
 
         <View style={{ flex: 1, justifyContent: "space-between" }}>
-          
           <FlatList
             ref={flatListRef}
             data={messages}
             keyExtractor={(item) => item.id}
+              contentContainerStyle={{ paddingBottom: 60 }} 
             renderItem={({ item }) => (
-              <View style={[styles.msg, item.from === userId ? styles.right : styles.left]}>
-                
+              <View
+                style={[
+                  styles.msg,
+                  item.from === userId ? styles.right : styles.left,
+                ]}
+              >
                 <View style={{ flexDirection: "row", alignItems: "center" }}>
-                  <Text style={{ color: item.from === userId ? "#fff" : "#000" }}>
+                  <Text
+                    style={{
+                      color: item.from === userId ? "#fff" : "#000",
+                    }}
+                  >
                     {item.text}
                   </Text>
 
                   {item.from === userId && (
                     <Ionicons
-                      name={
-                        item.status === "seen"
-                          ? "checkmark-done"
-                          : item.status === "delivered"
-                          ? "checkmark-done-outline"
-                          : "checkmark"
-                      }
+                      name="checkmark"
                       size={14}
-                      color={item.status === "seen" ? "#4FC3F7" : "#fff"}
+                      color="#fff"
                       style={{ marginLeft: 6 }}
                     />
                   )}
                 </View>
-
               </View>
             )}
           />
 
           {/* INPUT BAR */}
-          <View style={[styles.inputWrapper, { paddingBottom: insets.bottom || 8 }]}>
-            
-            <TouchableOpacity onPress={toggleAttachments}>
-              <Ionicons name="add" size={26} />
-            </TouchableOpacity>
-
-            <TouchableOpacity onPress={toggleEmojiPicker}>
-              <Ionicons name={showEmojiPicker ? "keyboard" : "happy-outline"} size={24} />
-            </TouchableOpacity>
-
+<View
+  style={[
+    styles.inputWrapper,
+    {
+      position: "absolute",
+      bottom: keyboardHeight,
+      left: 0,
+      right: 0,
+    },
+  ]}
+>
             <TextInput
-              style={[styles.chatInput, { height: Math.min(100, inputHeight) }]}
+              style={[
+                styles.chatInput,
+                { height: Math.min(100, inputHeight) },
+              ]}
               value={chatMessage}
               onChangeText={setChatMessage}
               multiline
-              onFocus={() => {
-                setShowEmojiPicker(false);
-                setShowAttachments(false);
-              }}
               onContentSizeChange={(e) =>
                 setInputHeight(e.nativeEvent.contentSize.height)
               }
             />
 
-            {chatMessage.trim() ? (
-              <TouchableOpacity onPress={sendMessage} style={styles.sendButton}>
-                <Ionicons name="send" color="#fff" />
-              </TouchableOpacity>
-            ) : (
-              <View style={styles.sendButton}>
-                <Ionicons name="mic" color="#fff" />
-              </View>
-            )}
+            <TouchableOpacity
+              onPress={sendMessage}
+              style={styles.sendButton}
+            >
+              <Ionicons name="send" color="#fff" />
+            </TouchableOpacity>
           </View>
-
-          {/* EMOJI */}
-          {showEmojiPicker && (
-            <View style={{ height: 300 }}>
-              <EmojiPicker
-                onEmojiSelected={(e) =>
-                  setChatMessage(prev => prev + e.native)
-                }
-              />
-            </View>
-          )}
-
-          {/* ATTACHMENTS */}
-          {showAttachments && (
-            <View style={styles.attachmentContainer}>
-              <TouchableOpacity onPress={pickImage}>
-                <Ionicons name="image" size={28} />
-                <Text>Gallery</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity onPress={takePhoto}>
-                <Ionicons name="camera" size={28} />
-                <Text>Camera</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity onPress={pickFile}>
-                <Ionicons name="document" size={28} />
-                <Text>File</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
         </View>
-      </KeyboardAwareView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  header: { flexDirection: "row", padding: 12, alignItems: "center" },
+  header: {
+    flexDirection: "row",
+    padding: 12,
+    alignItems: "center",
+  },
   username: { fontSize: 18, marginLeft: 10 },
 
-  msg: { padding: 10, margin: 5, borderRadius: 10, maxWidth: "70%" },
+  msg: {
+    padding: 10,
+    margin: 5,
+    borderRadius: 10,
+    maxWidth: "70%",
+  },
   left: { backgroundColor: "#eee", alignSelf: "flex-start" },
   right: { backgroundColor: "#25D366", alignSelf: "flex-end" },
 
@@ -258,6 +209,7 @@ const styles = StyleSheet.create({
     alignItems: "flex-end",
     padding: 8,
     borderTopWidth: 1,
+    backgroundColor: "#fff",
   },
 
   chatInput: {
@@ -274,13 +226,6 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 20,
     justifyContent: "center",
-    alignItems: "center",
-  },
-
-  attachmentContainer: {
-    height: 120,
-    flexDirection: "row",
-    justifyContent: "space-around",
     alignItems: "center",
   },
 });
