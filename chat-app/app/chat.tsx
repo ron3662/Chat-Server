@@ -17,7 +17,6 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useUser } from "../context/UserContext";
 import axios from "axios";
-import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 
@@ -39,6 +38,7 @@ export default function ChatScreen() {
 
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
+  const [avatarError, setAvatarError] = useState(false);
 
   // Load messages and setup WebSocket
   useEffect(() => {
@@ -102,11 +102,23 @@ export default function ChatScreen() {
       {/* 👤 Header */}
       <BlurView intensity={40} tint="light" style={styles.header}>
         <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={28} color="#FF4E50" />
+          <Text style={{ fontSize: 28, color: "#FF4E50" }}>←</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.userInfo} onPress={() => setShowProfile(true)}>
           <LinearGradient colors={["#ff9a9e","#fad0c4"]} style={styles.avatarGlow}>
-            <Image source={{ uri: parsedUser.avatar || DEFAULT_AVATAR }} style={styles.avatar} />
+            {!avatarError ? (
+              <Image 
+                source={{ uri: parsedUser.avatar || DEFAULT_AVATAR }} 
+                style={styles.avatar}
+                onError={() => setAvatarError(true)}
+              />
+            ) : (
+              <View style={[styles.avatar, { backgroundColor: "#FF4E50", justifyContent: "center", alignItems: "center" }]}>
+                <Text style={{ fontSize: 24, fontWeight: "700", color: "#fff" }}>
+                  {parsedUser.username?.charAt(0).toUpperCase() || "U"}
+                </Text>
+              </View>
+            )}
           </LinearGradient>
           <Text style={styles.username}>{parsedUser.username}</Text>
         </TouchableOpacity>
@@ -148,7 +160,7 @@ export default function ChatScreen() {
               style={styles.sendButton}
               onPress={sendMessage}
             >
-              <Ionicons name="send" size={22} color="#fff" />
+              <Text style={{ fontSize: 24, color: "#fff" }}>✈️</Text>
             </TouchableOpacity>
           </View>
         </SafeAreaView>
@@ -171,7 +183,19 @@ export default function ChatScreen() {
               style={{ ...StyleSheet.absoluteFillObject }}
             />
             <LinearGradient colors={["#ff9a9e","#fad0c4"]} style={styles.popupAvatarGlow}>
-              <Image source={{ uri: parsedUser.avatar || DEFAULT_AVATAR }} style={styles.popupAvatar} />
+              {!avatarError ? (
+                <Image 
+                  source={{ uri: parsedUser.avatar || DEFAULT_AVATAR }} 
+                  style={styles.popupAvatar}
+                  onError={() => setAvatarError(true)}
+                />
+              ) : (
+                <View style={[styles.popupAvatar, { backgroundColor: "#FF4E50", justifyContent: "center", alignItems: "center" }]}>
+                  <Text style={{ fontSize: 60, fontWeight: "700", color: "#fff" }}>
+                    {parsedUser.username?.charAt(0).toUpperCase() || "U"}
+                  </Text>
+                </View>
+              )}
             </LinearGradient>
             <Text style={styles.popupUsername}>{parsedUser.username}</Text>
             <Text style={styles.popupTagline}>{parsedUser.tagline || "Hey there 👋"}</Text>
