@@ -52,7 +52,7 @@ export default function ChatScreen() {
   const [isSending, setIsSending] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [previewMedia, setPreviewMedia] = useState<string | null>(null);
-  const [previewType, setPreviewType] = useState<"image" | "video" | null>(
+  const [previewType, setPreviewType] = useState<"image" | "video" | "gif" | null>(
     null,
   );
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -325,10 +325,17 @@ export default function ChatScreen() {
                 </TouchableOpacity>
               )}
               {item.mediatype === "gif" && item.media && (
+                <TouchableOpacity
+                  onPress={() => {
+                    setPreviewMedia(item.media);
+                    setPreviewType("gif");
+                  }}
+                >
                 <Image
                   source={{ uri: item.media }}
                   style={styles.mediaImage}
                 />
+                </TouchableOpacity>
               )}
               {item.mediatype === "video" && item.media && (
                 <TouchableOpacity
@@ -602,6 +609,15 @@ export default function ChatScreen() {
               resizeMode="contain"
             />
           )}
+
+          {previewType === "gif" && previewMedia && (
+            <Image
+              source={{ uri: previewMedia }}
+              style={styles.previewImage}
+              resizeMode="contain"
+            />
+          )}
+
           {previewType === "video" && previewMedia && (
             <View style={styles.previewVideoContainer}>
             <Video
