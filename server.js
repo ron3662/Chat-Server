@@ -38,7 +38,7 @@ const Message = mongoose.model("Message", {
   to: String,
   text: String,
   media: String,
-  type: String,
+  mediatype: String,
   time: Date,
 });
 
@@ -161,26 +161,28 @@ let clients = {};
 wss.on("connection", ws => {
   ws.on("message", async msg => {
     const data = JSON.parse(msg);
+    const type = data.type;
+    const msgData = data.message;
 
-    if (data.type === "auth") {
-      ws.userId = data.userId;
+    if (type === "auth") {
+      ws.userId = msgData.userId;
       clients[ws.userId] = ws;
       const online = Object.keys(clients);
       wss.clients.forEach(c => c.readyState === WebSocket.OPEN && c.send(JSON.stringify({ type: "online", users: online })));
     }
 
-    if (data.type === "message") {
-      const message = new Message({ ...data, time: new Date() });
+    if (type === "message") {
+      const message = new Message({ ...msgData, time: new Date() });
       await message.save();
-      if (clients[data.to]) 
+      if (clients[msgData.to]) 
         {
-          sendPushNotification((await User.findById(data.to)).pushToken, "New message from " + (await User.findById(data.from)).username, data.text || "Sent you a media message");
-          clients[data.to].send(JSON.stringify(message));
+          sendPushNotification((await User.findById(msgData.to)).pushToken, "New message from " + (await User.findById(msgData.from)).username, msgData.text || "Sent you a media message");
+          clients[msgData.to].send(JSON.stringify(message));
         }
     }
 
-    if (data.type === "typing") {
-      if (clients[data.to]) clients[data.to].send(JSON.stringify({ type: "typing", from: data.from }));
+    if (type === "typing") {
+      if (clients[msgData.to]) clients[msgData.to].send(JSON.stringify({ type: "typing", from: msgData.from }));
     }
   });
 

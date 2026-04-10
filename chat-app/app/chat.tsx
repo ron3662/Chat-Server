@@ -20,9 +20,10 @@ import { useUser } from "../context/UserContext";
 import axios from "axios";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
-import * as ImagePicker from "expo-image-picker";
+import * as DocumentPicker from "expo-document-picker";
 import { uploadToCloudinary } from "../utils/cloudinaryUpload";
 import { ScrollView } from "react-native";
+import { Video } from "expo-av";
 
 //Gif key
 const TENOR_API_KEY = "LIVDSRZULELA"; // temp key
@@ -51,7 +52,9 @@ export default function ChatScreen() {
   const [isSending, setIsSending] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [previewMedia, setPreviewMedia] = useState<string | null>(null);
-  const [previewType, setPreviewType] = useState<"image" | "video" | null>(null);
+  const [previewType, setPreviewType] = useState<"image" | "video" | null>(
+    null,
+  );
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const typingIndicatorRef = useRef<boolean>(false);
 
@@ -64,48 +67,44 @@ export default function ChatScreen() {
 
   //fetch trending gifs on mount
   useEffect(() => {
-    if(showEmojiPicker)
-      fetchTrendingGIFs();
+    if (showEmojiPicker) fetchTrendingGIFs();
   }, [showEmojiPicker]);
 
-    useEffect(() => {
-    if(gifQuery != "" && showEmojiPicker)
-      fetchGifQuery(gifQuery);
+  useEffect(() => {
+    if (gifQuery != "" && showEmojiPicker) fetchGifQuery(gifQuery);
   }, [gifQuery, showEmojiPicker]);
 
   const fetchTrendingGIFs = async () => {
-  try {
-    setLoadingGifs(true);
-    const res = await axios.get(
-      `https://g.tenor.com/v1/trending?key=${TENOR_API_KEY}&limit=${TENOR_LIMIT}`
-    );
+    try {
+      setLoadingGifs(true);
+      const res = await axios.get(
+        `https://g.tenor.com/v1/trending?key=${TENOR_API_KEY}&limit=${TENOR_LIMIT}`,
+      );
 
-    console.log("TRENDING GIFS:", res.data.results);
-    setGifResults(res.data.results);
-  } catch (error) {
-    console.log("Tenor error:", error);
-  }
-  finally {
-    setLoadingGifs(false);
-  }
+      console.log("TRENDING GIFS:", res.data.results);
+      setGifResults(res.data.results);
+    } catch (error) {
+      console.log("Tenor error:", error);
+    } finally {
+      setLoadingGifs(false);
+    }
   };
 
   const fetchGifQuery = async (query: string) => {
-  try {
-    setLoadingGifs(true);
-    const res = await axios.get(
-      `https://g.tenor.com/v1/search?key=${TENOR_API_KEY}&limit=${TENOR_LIMIT}&q=${query}`
-    );
+    try {
+      setLoadingGifs(true);
+      const res = await axios.get(
+        `https://g.tenor.com/v1/search?key=${TENOR_API_KEY}&limit=${TENOR_LIMIT}&q=${query}`,
+      );
 
-    console.log("TRENDING GIFS:", res.data.results);
-    setGifResults(res.data.results);
-  } catch (error) {
-    console.log("Tenor error:", error);
-  }
-  finally {
-    setLoadingGifs(false);
-  }
-};
+      console.log("TRENDING GIFS:", res.data.results);
+      setGifResults(res.data.results);
+    } catch (error) {
+      console.log("Tenor error:", error);
+    } finally {
+      setLoadingGifs(false);
+    }
+  };
 
   // Load messages and setup WebSocket
   useEffect(() => {
@@ -144,7 +143,7 @@ export default function ChatScreen() {
         to: selectedUserId,
         text: chatMessage || "",
         media: media || "",
-        type: mediaType || "text",
+        mediaType: mediaType || "text",
         time: new Date(),
       };
 
@@ -152,9 +151,8 @@ export default function ChatScreen() {
         JSON.stringify({
           type: "message",
           ...newMsg,
-        })
+        }),
       );
-
       setMessages((prev) => [...prev, newMsg]);
       setChatMessage("");
     } catch (error) {
@@ -174,7 +172,7 @@ export default function ChatScreen() {
           type: "typing",
           from: userId,
           to: selectedUserId,
-        })
+        }),
       );
     }
 
@@ -184,20 +182,38 @@ export default function ChatScreen() {
     }, 2000);
   };
 
-  const pickMedia = async (type: "image" | "video") => {
+  const pickUniversalMedia = async () => {
     try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: type === "image" ? ["images"] : ["videos"],
-        allowsEditing: false,
-        quality: 0.8,
+      const result = await DocumentPicker.getDocumentAsync({
+        type: "*/*",
+        copyToCacheDirectory: true,
       });
 
-      if (!result.canceled) {
-        setIsSending(true);
-        const uri = result.assets[0].uri;
-        const mediaUrl = await uploadToCloudinary(uri);
-        await sendMessage(mediaUrl, type);
+      if (result.canceled) return;
+
+      const file = result.assets[0];
+
+      const uri = file.uri;
+      const name = file.name;
+      const mimeType = file.mimeType;
+
+      // 🔥 Detect file type
+      let type = "file";
+
+      if (mimeType?.startsWith("image/")) 
+      {
+        type = "image";
+        if (mimeType === "image/gif") {
+          type = "gif";
+        }
       }
+      else if (mimeType?.startsWith("video/")) type = "video";
+      else if (mimeType === "application/pdf") type = "pdf";
+
+
+      setIsSending(true);
+      const mediaUrl = await uploadToCloudinary(uri);
+      await sendMessage(mediaUrl, type);
     } catch (error) {
       console.error("Media pick failed:", error);
       setIsSending(false);
@@ -207,7 +223,10 @@ export default function ChatScreen() {
   // Scroll to bottom on new messages or keyboard events
   useEffect(() => {
     if (messages.length > 0 || otherUserTyping) {
-      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 50);
+      setTimeout(
+        () => flatListRef.current?.scrollToEnd({ animated: true }),
+        50,
+      );
     }
   }, [messages, otherUserTyping]);
 
@@ -260,7 +279,9 @@ export default function ChatScreen() {
                   },
                 ]}
               >
-                <Text style={{ fontSize: 24, fontWeight: "700", color: "#fff" }}>
+                <Text
+                  style={{ fontSize: 24, fontWeight: "700", color: "#fff" }}
+                >
                   {parsedUser.username?.charAt(0).toUpperCase() || "U"}
                 </Text>
               </View>
@@ -284,29 +305,43 @@ export default function ChatScreen() {
           scrollEnabled={true}
           nestedScrollEnabled={true}
           renderItem={({ item }) => (
-            <View style={[styles.msg, item.from === userId ? styles.right : styles.left]}>
-              {item.type === "image" && item.media && (
-                <TouchableOpacity onPress={() => {
-                  setPreviewMedia(item.media);
-                  setPreviewType("image");
-                }}>
-                  <Image source={{ uri: item.media }} style={styles.mediaImage} />
+            <View
+              style={[
+                styles.msg,
+                item.from === userId ? styles.right : styles.left,
+              ]}
+            >
+              {item.mediatype === "image" && item.media && (
+                <TouchableOpacity
+                  onPress={() => {
+                    setPreviewMedia(item.media);
+                    setPreviewType("image");
+                  }}
+                >
+                  <Image
+                    source={{ uri: item.media }}
+                    style={styles.mediaImage}
+                  />
                 </TouchableOpacity>
               )}
-              {item.type === "gif" && item.media && (
-              <Image
-                source={{ uri: item.media }}
-                style={{ width: 200, height: 200, borderRadius: 12 }}
-              />
-)}
-              {item.type === "video" && item.media && (
-                <TouchableOpacity onPress={() => {
-                  setPreviewMedia(item.media);
-                  setPreviewType("video");
-                }}>
+              {item.mediatype === "gif" && item.media && (
+                <Image
+                  source={{ uri: item.media }}
+                  style={styles.mediaImage}
+                />
+              )}
+              {item.mediatype === "video" && item.media && (
+                <TouchableOpacity
+                  onPress={() => {
+                    setPreviewMedia(item.media);
+                    setPreviewType("video");
+                  }}
+                >
                   <View style={styles.videoContainer}>
                     <Image
-                      source={{ uri: "https://via.placeholder.com/200x200/FF4E50/ffffff?text=Video" }}
+                      source={{
+                        uri: "https://via.placeholder.com/200x200/FF4E50/ffffff?text=Video",
+                      }}
                       style={styles.mediaImage}
                     />
                     <Text style={styles.playIcon}>▶️</Text>
@@ -338,21 +373,19 @@ export default function ChatScreen() {
           <View
             style={[
               styles.inputWrapper,
-              { backgroundColor: "#fdfbfb", marginTop: isKeyboardVisible ? -8 : 8 },
+              {
+                backgroundColor: "#fdfbfb",
+                marginTop: isKeyboardVisible ? -8 : 8,
+              },
             ]}
           >
             <TouchableOpacity
               style={styles.attachmentButton}
-              onPress={() => pickMedia("image")}
+              onPress={() => pickUniversalMedia()}
             >
-              <Text style={{ fontSize: 20 }}>🖼️</Text>
+              <Text style={{ fontSize: 20 }}>📎</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.attachmentButton}
-              onPress={() => pickMedia("video")}
-            >
-              <Text style={{ fontSize: 20 }}>🎬</Text>
-            </TouchableOpacity>
+
             <TouchableOpacity
               style={styles.attachmentButton}
               onPress={() => setShowEmojiPicker(!showEmojiPicker)}
@@ -385,7 +418,7 @@ export default function ChatScreen() {
               )}
             </TouchableOpacity>
           </View>
-          
+
           {/* 😊 Emoji Picker */}
           {showEmojiPicker && (
             <ScrollView
@@ -526,7 +559,9 @@ export default function ChatScreen() {
                     },
                   ]}
                 >
-                  <Text style={{ fontSize: 60, fontWeight: "700", color: "#fff" }}>
+                  <Text
+                    style={{ fontSize: 60, fontWeight: "700", color: "#fff" }}
+                  >
                     {parsedUser.username?.charAt(0).toUpperCase() || "U"}
                   </Text>
                 </View>
@@ -569,14 +604,13 @@ export default function ChatScreen() {
           )}
           {previewType === "video" && previewMedia && (
             <View style={styles.previewVideoContainer}>
-              <Image
-                source={{ uri: "https://via.placeholder.com/400x400/FF4E50/ffffff?text=Video+Player" }}
-                style={styles.previewImage}
+            <Video
+                source={{ uri: previewMedia }}
+                style={{ width: "90%", height: "80%" }}
+                useNativeControls
                 resizeMode="contain"
+                shouldPlay
               />
-              <TouchableOpacity style={styles.previewPlayButton}>
-                <Text style={{ fontSize: 50 }}>▶️</Text>
-              </TouchableOpacity>
             </View>
           )}
           <TouchableOpacity
@@ -607,7 +641,13 @@ const styles = StyleSheet.create({
   avatarGlow: { padding: 2, borderRadius: 35 },
   avatar: { width: 50, height: 50, borderRadius: 25 },
   username: { fontSize: 18, fontWeight: "600", marginLeft: 10 },
-  msg: { padding: 10, marginVertical: 5, borderRadius: 10, marginHorizontal: 12, maxWidth: "75%" },
+  msg: {
+    padding: 10,
+    marginVertical: 5,
+    borderRadius: 10,
+    marginHorizontal: 12,
+    maxWidth: "75%",
+  },
   left: { backgroundColor: "#eee", alignSelf: "flex-start" },
   right: { backgroundColor: "#25D366", alignSelf: "flex-end" },
   inputWrapper: {
@@ -687,7 +727,12 @@ const styles = StyleSheet.create({
   popupAvatarGlow: { padding: 3, borderRadius: 60, marginBottom: 12 },
   popupAvatar: { width: 160, height: 160, borderRadius: 55 },
   popupUsername: { fontSize: 22, fontWeight: "700", color: "#000" },
-  popupTagline: { marginTop: 6, fontSize: 14, color: "#555", textAlign: "center" },
+  popupTagline: {
+    marginTop: 6,
+    fontSize: 14,
+    color: "#555",
+    textAlign: "center",
+  },
   emojiPickerContainer: {
     backgroundColor: "#f5f5f5",
     borderTopLeftRadius: 20,
@@ -697,7 +742,12 @@ const styles = StyleSheet.create({
     maxHeight: 240,
   },
   emojiSection: { marginBottom: 12 },
-  emojiSectionTitle: { fontSize: 14, fontWeight: "600", marginBottom: 8, color: "#666" },
+  emojiSectionTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    marginBottom: 8,
+    color: "#666",
+  },
   emojiGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
