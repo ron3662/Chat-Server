@@ -44,8 +44,14 @@ export default function ChatScreen() {
   const [avatarError, setAvatarError] = useState(false);
   const [otherUserTyping, setOtherUserTyping] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [previewMedia, setPreviewMedia] = useState<string | null>(null);
+  const [previewType, setPreviewType] = useState<"image" | "video" | null>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const typingIndicatorRef = useRef<boolean>(false);
+
+  const emojis = ["😀", "😂", "😍", "🔥", "👍", "🎉", "❤️", "😎", "🚀", "💯"];
+  const gifs = ["🎊", "🎈", "🎁", "⭐", "✨", "🌟", "💫", "🌈", "🦋", "🌺"];
 
   // Load messages and setup WebSocket
   useEffect(() => {
@@ -226,16 +232,26 @@ export default function ChatScreen() {
           renderItem={({ item }) => (
             <View style={[styles.msg, item.from === userId ? styles.right : styles.left]}>
               {item.type === "image" && item.media && (
-                <Image source={{ uri: item.media }} style={styles.mediaImage} />
+                <TouchableOpacity onPress={() => {
+                  setPreviewMedia(item.media);
+                  setPreviewType("image");
+                }}>
+                  <Image source={{ uri: item.media }} style={styles.mediaImage} />
+                </TouchableOpacity>
               )}
               {item.type === "video" && item.media && (
-                <View style={styles.videoContainer}>
-                  <Image
-                    source={{ uri: "https://via.placeholder.com/200x200/FF4E50/ffffff?text=Video" }}
-                    style={styles.mediaImage}
-                  />
-                  <Text style={styles.playIcon}>▶️</Text>
-                </View>
+                <TouchableOpacity onPress={() => {
+                  setPreviewMedia(item.media);
+                  setPreviewType("video");
+                }}>
+                  <View style={styles.videoContainer}>
+                    <Image
+                      source={{ uri: "https://via.placeholder.com/200x200/FF4E50/ffffff?text=Video" }}
+                      style={styles.mediaImage}
+                    />
+                    <Text style={styles.playIcon}>▶️</Text>
+                  </View>
+                </TouchableOpacity>
               )}
               {item.text && (
                 <Text style={{ color: item.from === userId ? "#fff" : "#000" }}>
@@ -277,6 +293,12 @@ export default function ChatScreen() {
             >
               <Text style={{ fontSize: 20 }}>🎬</Text>
             </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.attachmentButton}
+              onPress={() => setShowEmojiPicker(!showEmojiPicker)}
+            >
+              <Text style={{ fontSize: 20 }}>😊</Text>
+            </TouchableOpacity>
             <TextInput
               style={styles.chatInput}
               value={chatMessage}
@@ -303,6 +325,46 @@ export default function ChatScreen() {
               )}
             </TouchableOpacity>
           </View>
+          
+          {/* 😊 Emoji Picker */}
+          {showEmojiPicker && (
+            <View style={styles.emojiPickerContainer}>
+              <View style={styles.emojiSection}>
+                <Text style={styles.emojiSectionTitle}>Emojis</Text>
+                <View style={styles.emojiGrid}>
+                  {emojis.map((emoji) => (
+                    <TouchableOpacity
+                      key={emoji}
+                      style={styles.emojiButton}
+                      onPress={() => {
+                        setChatMessage(chatMessage + emoji);
+                        setShowEmojiPicker(false);
+                      }}
+                    >
+                      <Text style={styles.emojiText}>{emoji}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+              <View style={styles.emojiSection}>
+                <Text style={styles.emojiSectionTitle}>GIFs & Stickers</Text>
+                <View style={styles.emojiGrid}>
+                  {gifs.map((gif) => (
+                    <TouchableOpacity
+                      key={gif}
+                      style={styles.emojiButton}
+                      onPress={() => {
+                        setChatMessage(chatMessage + gif);
+                        setShowEmojiPicker(false);
+                      }}
+                    >
+                      <Text style={styles.emojiText}>{gif}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            </View>
+          )}
         </SafeAreaView>
       </KeyboardAvoidingView>
 
@@ -357,6 +419,57 @@ export default function ChatScreen() {
               {parsedUser.tagline || "Hey there 👋"}
             </Text>
           </BlurView>
+        </View>
+      </Modal>
+
+      {/* 🖼️ Media Preview Modal */}
+      <Modal
+        visible={!!previewMedia}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          setPreviewMedia(null);
+          setPreviewType(null);
+        }}
+      >
+        <Pressable
+          style={styles.previewBackdrop}
+          onPress={() => {
+            setPreviewMedia(null);
+            setPreviewType(null);
+          }}
+        >
+          <BlurView intensity={90} tint="dark" style={{ flex: 1 }} />
+        </Pressable>
+        <View style={styles.previewContainer}>
+          {previewType === "image" && previewMedia && (
+            <Image
+              source={{ uri: previewMedia }}
+              style={styles.previewImage}
+              resizeMode="contain"
+            />
+          )}
+          {previewType === "video" && previewMedia && (
+            <View style={styles.previewVideoContainer}>
+              <Image
+                source={{ uri: "https://via.placeholder.com/400x400/FF4E50/ffffff?text=Video+Player" }}
+                style={styles.previewImage}
+                resizeMode="contain"
+              />
+              <TouchableOpacity style={styles.previewPlayButton}>
+                <Text style={{ fontSize: 50 }}>▶️</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+          <TouchableOpacity
+            style={styles.closePreviewButton}
+            onPress={() => {
+              setPreviewMedia(null);
+              setPreviewType(null);
+            }}
+          >
+            <Text style={{ fontSize: 28, color: "#fff" }}>✕</Text>
+          </TouchableOpacity>
         </View>
       </Modal>
     </SafeAreaView>
@@ -457,4 +570,65 @@ const styles = StyleSheet.create({
   popupAvatar: { width: 160, height: 160, borderRadius: 55 },
   popupUsername: { fontSize: 22, fontWeight: "700", color: "#000" },
   popupTagline: { marginTop: 6, fontSize: 14, color: "#555", textAlign: "center" },
+  emojiPickerContainer: {
+    backgroundColor: "#f5f5f5",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    maxHeight: 240,
+  },
+  emojiSection: { marginBottom: 12 },
+  emojiSectionTitle: { fontSize: 14, fontWeight: "600", marginBottom: 8, color: "#666" },
+  emojiGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  emojiButton: {
+    width: "22%",
+    paddingVertical: 10,
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#eee",
+  },
+  emojiText: { fontSize: 24 },
+  previewBackdrop: { ...StyleSheet.absoluteFillObject },
+  previewContainer: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 12,
+  },
+  previewImage: { width: "90%", height: "80%", borderRadius: 20 },
+  previewVideoContainer: {
+    width: "90%",
+    height: "80%",
+    justifyContent: "center",
+    alignItems: "center",
+    position: "relative",
+  },
+  previewPlayButton: {
+    position: "absolute",
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  closePreviewButton: {
+    position: "absolute",
+    top: 20,
+    right: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(0,0,0,0.7)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
 });
