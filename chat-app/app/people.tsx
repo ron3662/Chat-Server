@@ -74,8 +74,6 @@ setUsers(filteredUsers);
         style={StyleSheet.absoluteFill}
       />
 
-      <FloatingHearts />
-
       <Text style={styles.title}>People</Text>
 
       <FlatList
@@ -159,57 +157,7 @@ setUsers(filteredUsers);
   );
 }
 
-/* 💕 Floating Hearts */
-function FloatingHearts() {
-  return (
-    <View style={styles.heartsContainer} pointerEvents="none">
-      {Array.from({ length: 8 }).map((_, i) => (
-        <Heart key={i} />
-      ))}
-    </View>
-  );
-}
-
-function Heart() {
-  const translateY = useSharedValue(height + 50);
-  const scale = useSharedValue(0.6 + Math.random());
-  const opacity = useSharedValue(0.2 + Math.random() * 0.4);
-  const left = Math.random() * width;
-
-  useEffect(() => {
-    translateY.value = withRepeat(
-      withTiming(-120, {
-        duration: 7000 + Math.random() * 4000,
-      }),
-      -1,
-      false
-    );
-
-    scale.value = withRepeat(
-      withTiming(scale.value + 0.3, { duration: 1500 }),
-      -1,
-      true
-    );
-  }, []);
-
-  const style = useAnimatedStyle(() => ({
-    position: "absolute",
-    left,
-    transform: [
-      { translateY: translateY.value },
-      { scale: scale.value },
-    ],
-    opacity: opacity.value,
-  }));
-
-  return (
-    <Animated.Text style={[style, styles.heart]}>
-      💖
-    </Animated.Text>
-  );
-}
-
-/* 👤 User Card */
+/*  User Card */
 function UserCard({
   item,
   defaultAvatar,
@@ -285,16 +233,6 @@ const styles = StyleSheet.create({
   loader: {
     flex: 1,
     justifyContent: "center",
-  },
-
-  heartsContainer: {
-    position: "absolute",
-    width: "100%",
-    height: "100%",
-  },
-
-  heart: {
-    fontSize: 22,
   },
 
   cardWrapper: {

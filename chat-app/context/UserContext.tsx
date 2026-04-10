@@ -48,17 +48,29 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const loadUser = async () => {
-    const data = await SecureStore.getItemAsync("user");
-    if (data) {
-      const user = JSON.parse(data);
-      setUserId(user.userId);
-      setUsername(user.username);
-      setAvatar(user.avatar);
-      setTagline(user.tagline);
-      setPassword(user.password);
-    }
+    try {
+      // Add timeout to prevent hanging on SecureStore
+      const timeoutPromise = new Promise((resolve) => {
+        setTimeout(() => resolve(null), 2000); // 2 second timeout
+      });
 
-    setLoading(false); // ✅ important
+      const loadPromise = SecureStore.getItemAsync("user");
+      const data = await Promise.race([loadPromise, timeoutPromise]);
+
+      if (data) {
+        const user = JSON.parse(data as string);
+        setUserId(user.userId);
+        setUsername(user.username);
+        setAvatar(user.avatar);
+        setTagline(user.tagline);
+        setPassword(user.password);
+      }
+    } catch (error) {
+      console.warn("Error loading user from SecureStore:", error);
+    } finally {
+      // ✅ CRITICAL: Always set loading to false, even if load fails
+      setLoading(false);
+    }
   };
 
   // ✅ SAVE USER

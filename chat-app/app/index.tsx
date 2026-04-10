@@ -23,12 +23,16 @@ import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
+import { Ionicons } from "@expo/vector-icons";
+import { Modal, ActivityIndicator } from "react-native";
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
     shouldPlaySound: true,
     shouldSetBadge: false,
+    shouldShowBanner: true,
+    shouldShowList: true,
   }),
 });
 
@@ -52,6 +56,14 @@ export default function Home() {
   const [localPassword, setLocalPassword] = useState("");
   const [localTagline, setLocalTagline] = useState(tagline || "");
   const [localAvatar, setLocalAvatar] = useState(avatar || "");
+  const [isLoading, setIsLoading] = useState(false);
+  const [loadingText, setLoadingText] = useState("Waiting for server response...");
+  const loadingMessagesRef = useRef([
+    "Waiting for server response...",
+    "Oh, this is taking longer than expected...",
+    "Hang on a moment, we are almost there...",
+  ]);
+  const loadingIndexRef = useRef(0);
 
   const DEFAULT_AVATAR =
     "https://ui-avatars.com/api/?name=User&background=E5E5EA&color=555";
@@ -63,17 +75,9 @@ export default function Home() {
   const tiltX = useRef(new Animated.Value(0)).current;
   const tiltY = useRef(new Animated.Value(0)).current;
 
-  // Header heart animation
+  // Header heart animation (beating heart in title only)
   const heartScale = useRef(new Animated.Value(1)).current;
   const heartY = useRef(new Animated.Value(0)).current;
-
-  // Floating hearts
-  const hearts = Array.from({ length: 6 }).map(() => ({
-    x: useRef(new Animated.Value(Math.random() * width)).current,
-    y: useRef(new Animated.Value(height + Math.random() * 200)).current,
-    scale: useRef(new Animated.Value(Math.random() * 0.5 + 0.5)).current,
-    opacity: useRef(new Animated.Value(0.6)).current,
-  }));
 
   useEffect(() => {
     // Fade in
@@ -112,24 +116,6 @@ export default function Home() {
         ]),
       ])
     ).start();
-
-    // Floating hearts animation
-    hearts.forEach((heart) => {
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(heart.y, {
-            toValue: -100,
-            duration: 6000 + Math.random() * 2000,
-            useNativeDriver: true,
-          }),
-          Animated.timing(heart.y, {
-            toValue: height + 100,
-            duration: 0,
-            useNativeDriver: true,
-          }),
-        ])
-      ).start();
-    });
   }, []);
 
   // Parallax
@@ -146,12 +132,6 @@ export default function Home() {
       },
     })
   ).current;
-
-  // Haptics helper
-  const handlePress = async (action: () => void) => {
-    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    action();
-  };
 
   // Image picker
   const pickImage = async () => {
@@ -209,16 +189,37 @@ export default function Home() {
 
 
   useEffect(() => {
+    console.log("🔄 UseEffect triggered - Loading:", loading, "UserId:", userId);
+    
     if (!loading && userId !== "") {
+      console.log("✅ Auto-navigating to /people. UserId:", userId);
       setLocalUsername(username);
       setLocalPassword(password);
       setLocalTagline(tagline);
       setLocalAvatar(avatar);
+      // Auto-navigate to people screen if already logged in
+      router.push("/people");
+    } else {
+      console.log("⏳ Waiting for login. Loading:", loading, "UserId:", userId);
     }
-  }, [userId, loading]);
+  }, [userId, loading, router]);
+
+  // Cycling loading text
+  useEffect(() => {
+    if (!isLoading) return;
+    const interval = setInterval(() => {
+      loadingIndexRef.current = (loadingIndexRef.current + 1) % loadingMessagesRef.current.length;
+      setLoadingText(loadingMessagesRef.current[loadingIndexRef.current]);
+    }, 2500);
+    return () => clearInterval(interval);
+  }, [isLoading]);
 
   const register = async () => {
     try {
+      setIsLoading(true);
+      loadingIndexRef.current = 0;
+      setLoadingText(loadingMessagesRef.current[0]);
+      
       const formData = new FormData();
       if (localAvatar) {
         formData.append("file", { uri: localAvatar, name: "avatar.jpg", type: "image/jpeg" } as any);
@@ -229,14 +230,20 @@ export default function Home() {
 
       const res = await axios.post(`${SERVER_URL}/register`, formData, { headers: { "Content-Type": "multipart/form-data" } });
       await saveUser({ ...res.data, password: localPassword });
+      setIsLoading(false);
       Alert.alert("Registered successfully");
     } catch (error) {
+      setIsLoading(false);
       Alert.alert("Registration failed");
     }
   };
 
   const enterApp = async () => {
     try {
+      setIsLoading(true);
+      loadingIndexRef.current = 0;
+      setLoadingText(loadingMessagesRef.current[0]);
+      
       const formData = new FormData();
       if (localAvatar && localAvatar.startsWith("file")) {
         formData.append("file", { uri: localAvatar, name: "avatar.jpg", type: "image/jpeg" } as any);
@@ -247,13 +254,21 @@ export default function Home() {
 
       const res = await axios.post(`${SERVER_URL}/login`, formData, { headers: { "Content-Type": "multipart/form-data" } });
       await saveUser(res.data);
+      setIsLoading(false);
       router.push("/people");
     } catch (error) {
+      setIsLoading(false);
       Alert.alert("Login failed");
     }
   };
 
-  const AnimatedButton = ({ children, style, onPress }: any) => {
+  // Haptics helper
+  const handlePress = async (action: () => void) => {
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    action();
+  };
+
+  const AnimatedButton = ({ children, style, onPress, disabled }: any) => {
     const scale = useRef(new Animated.Value(1)).current;
 
     return (
@@ -261,6 +276,7 @@ export default function Home() {
         <TouchableOpacity
           style={style}
           onPress={() => handlePress(onPress)}
+          disabled={disabled}
           onPressIn={() => Animated.spring(scale, { toValue: 0.94, tension: 120, friction: 4, useNativeDriver: true }).start()}
           onPressOut={() => Animated.spring(scale, { toValue: 1, tension: 120, friction: 6, useNativeDriver: true }).start()}
         >
@@ -282,20 +298,6 @@ export default function Home() {
         showsVerticalScrollIndicator={false}
       >
         <LinearGradient colors={["#FDEBEB", "#E0C3FC"]} style={{ flex: 1 }}>
-          {hearts.map((h, i) => (
-            <Animated.Text
-              key={i}
-              style={{
-                position: "absolute",
-                fontSize: 20 + Math.random() * 10,
-                transform: [{ translateX: h.x }, { translateY: h.y }, { scale: h.scale }],
-                opacity: h.opacity,
-              }}
-            >
-              💗
-            </Animated.Text>
-          ))}
-
           <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
             {/* Header */}
             <View style={styles.headerBox}>
@@ -324,11 +326,11 @@ export default function Home() {
                   <TextInput placeholder="Username" value={localUsername} onChangeText={setLocalUsername} style={styles.input} />
                   <TextInput placeholder="Password" secureTextEntry value={localPassword} onChangeText={setLocalPassword} style={styles.input} />
 
-                  <AnimatedButton style={styles.button} onPress={enterApp}>
+                  <AnimatedButton style={[styles.button, isLoading && styles.disabledButton]} disabled={isLoading} onPress={enterApp}>
                     <Text style={styles.buttonText}>Login</Text>
                   </AnimatedButton>
 
-                  <AnimatedButton style={styles.button} onPress={register}>
+                  <AnimatedButton style={[styles.button, isLoading && styles.disabledButton]} disabled={isLoading} onPress={register}>
                     <Text style={styles.buttonText}>Register</Text>
                   </AnimatedButton>
                 </>
@@ -338,11 +340,11 @@ export default function Home() {
                 <>
                   <Text style={styles.username}>{localUsername}</Text>
 
-                  <AnimatedButton style={styles.button} onPress={enterApp}>
+                  <AnimatedButton style={[styles.button, isLoading && styles.disabledButton]} disabled={isLoading} onPress={enterApp}>
                     <Text style={styles.buttonText}>Enter</Text>
                   </AnimatedButton>
 
-                  <AnimatedButton style={styles.logoutButton} onPress={logout}>
+                  <AnimatedButton style={[styles.logoutButton, isLoading && styles.disabledButton]} disabled={isLoading} onPress={logout}>
                     <Text style={styles.logoutText}>Logout</Text>
                   </AnimatedButton>
                 </>
@@ -350,6 +352,18 @@ export default function Home() {
             </BlurView>
           </Animated.View>
         </LinearGradient>
+
+        {/* 📡 Loading Overlay */}
+        {isLoading && (
+          <Modal transparent visible={isLoading} animationType="fade">
+            <BlurView intensity={90} style={styles.loadingContainer}>
+              <View style={styles.loadingContent}>
+                <Ionicons name="hourglass-outline" size={60} color="#FF4E50" />
+                <Text style={styles.loadingText}>{loadingText}</Text>
+              </View>
+            </BlurView>
+          </Modal>
+        )}
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -371,4 +385,8 @@ const styles = StyleSheet.create({
   logoutButton: { backgroundColor: "#fff", padding: 14, borderRadius: 12, marginTop: 10, alignItems: "center" },
   logoutText: { color: "#FF3B30", fontWeight: "600" },
   username: { textAlign: "center", fontSize: 24, marginVertical: 10 },
+  disabledButton: { backgroundColor: "#CCCCCC", opacity: 0.6 },
+  loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
+  loadingContent: { justifyContent: "center", alignItems: "center", backgroundColor: "rgba(255, 255, 255, 0.95)", padding: 30, borderRadius: 20 },
+  loadingText: { marginTop: 16, fontSize: 16, color: "#333", textAlign: "center", fontWeight: "500" },
 });

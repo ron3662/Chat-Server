@@ -6,226 +6,201 @@ import {
   TouchableOpacity,
   FlatList,
   StyleSheet,
-  KeyboardAvoidingView,
+  Image,
+  Pressable,
+  Modal,
   Platform,
+  KeyboardAvoidingView,
+  Keyboard,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useUser } from "../context/UserContext";
 import axios from "axios";
 import { Ionicons } from "@expo/vector-icons";
-import { Keyboard } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { BlurView } from "expo-blur";
+import { LinearGradient } from "expo-linear-gradient";
 
 const SERVER_URL = "https://chat-server-jznv.onrender.com";
+const DEFAULT_AVATAR =
+  "https://ui-avatars.com/api/?name=User&background=E5E5EA&color=555";
 
 export default function ChatScreen() {
   const { user } = useLocalSearchParams();
-  const parsedUser = JSON.parse(user);
+  const parsedUser = JSON.parse(user as string);
   const { userId } = useUser();
   const selectedUserId = parsedUser.id;
 
   const [messages, setMessages] = useState<any[]>([]);
   const [chatMessage, setChatMessage] = useState("");
-  const [inputHeight, setInputHeight] = useState(40);
-
   const wsRef = useRef<WebSocket | null>(null);
   const flatListRef = useRef<FlatList>(null);
   const router = useRouter();
-  const [keyboardVisible, setKeyboardVisible] = useState(false);
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
-const insets = useSafeAreaInsets();
-useEffect(() => {
-  const showSub = Keyboard.addListener("keyboardDidShow", (e) => {
-    setKeyboardHeight(e.endCoordinates.height);
-  });
 
-  const hideSub = Keyboard.addListener("keyboardDidHide", () => {
-    setKeyboardHeight(0);
-  });
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
 
-  return () => {
-    showSub.remove();
-    hideSub.remove();
-  };
-}, []);
-
+  // Load messages and setup WebSocket
   useEffect(() => {
-    axios
-      .get(`${SERVER_URL}/messages/${userId}/${selectedUserId}`)
-      .then((res) => setMessages(res.data));
+    axios.get(`${SERVER_URL}/messages/${userId}/${selectedUserId}`)
+      .then(res => {
+        setMessages(res.data);
+      })
+      .catch(err => console.warn("Error loading messages:", err));
 
     const ws = new WebSocket("wss://chat-server-jznv.onrender.com");
-
     ws.onopen = () => ws.send(JSON.stringify({ type: "auth", userId }));
-
     ws.onmessage = (e) => {
       const data = JSON.parse(e.data);
-
-      if (data.type === "seen") {
-        setMessages((prev) =>
-          prev.map((msg) =>
-            msg.id === data.messageId ? { ...msg, status: "seen" } : msg
-          )
-        );
-      }
-
-      if (data.from === selectedUserId) {
-        setMessages((prev) => [...prev, { ...data, status: "delivered" }]);
-      }
+      if (data.from === selectedUserId) setMessages(prev => [...prev, data]);
     };
-
     wsRef.current = ws;
     return () => ws.close();
   }, []);
 
   const sendMessage = () => {
-    if (!chatMessage.trim()) return;
-
-    const newMsg = {
-      id: Date.now().toString(),
+    if (!chatMessage.trim() || !wsRef.current) return;
+    
+    const newMsg = { from: userId, text: chatMessage, time: new Date() };
+    wsRef.current.send(JSON.stringify({
+      type: "message",
       from: userId,
+      to: selectedUserId,
       text: chatMessage,
-      status: "sent",
-    };
-
-    wsRef.current?.send(
-      JSON.stringify({
-        type: "message",
-        ...newMsg,
-        to: selectedUserId,
-      })
-    );
-
-    setMessages((prev) => [...prev, newMsg]);
+      time: new Date(),
+    }));
+    setMessages(prev => [...prev, newMsg]);
     setChatMessage("");
   };
 
+
+
+  // Scroll to bottom on new messages or keyboard events
   useEffect(() => {
-    setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 50);
+    if (messages.length > 0) {
+      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 50);
+    }
   }, [messages]);
 
+  useEffect(() => {
+    const showSub = Keyboard.addListener("keyboardDidShow", () => {
+      setIsKeyboardVisible(true);
+      flatListRef.current?.scrollToEnd({ animated: true });
+    });
+    const hideSub = Keyboard.addListener("keyboardDidHide", () => {
+      setIsKeyboardVisible(false);
+      flatListRef.current?.scrollToEnd({ animated: true });
+    });
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
   return (
-    <SafeAreaView style={{ flex: 1 }}>
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()}>
-            <Ionicons name="arrow-back" size={26} />
-          </TouchableOpacity>
+    <SafeAreaView edges={["top", "left", "right"]} style={{ flex: 1, backgroundColor: "#fdfbfb" }}>
+      {/* 👤 Header */}
+      <BlurView intensity={40} tint="light" style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()}>
+          <Ionicons name="arrow-back" size={28} color="#FF4E50" />
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.userInfo} onPress={() => setShowProfile(true)}>
+          <LinearGradient colors={["#ff9a9e","#fad0c4"]} style={styles.avatarGlow}>
+            <Image source={{ uri: parsedUser.avatar || DEFAULT_AVATAR }} style={styles.avatar} />
+          </LinearGradient>
           <Text style={styles.username}>{parsedUser.username}</Text>
-        </View>
+        </TouchableOpacity>
+      </BlurView>
 
-        <View style={{ flex: 1, justifyContent: "space-between" }}>
-          <FlatList
-            ref={flatListRef}
-            data={messages}
-            keyExtractor={(item) => item.id}
-              contentContainerStyle={{ paddingBottom: 60 }} 
-            renderItem={({ item }) => (
-              <View
-                style={[
-                  styles.msg,
-                  item.from === userId ? styles.right : styles.left,
-                ]}
-              >
-                <View style={{ flexDirection: "row", alignItems: "center" }}>
-                  <Text
-                    style={{
-                      color: item.from === userId ? "#fff" : "#000",
-                    }}
-                  >
-                    {item.text}
-                  </Text>
+      {/* 💬 Chat */}
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? -50 : -50}
+      >
+        <FlatList
+          ref={flatListRef}
+          data={messages}
+          keyExtractor={(_, i) => i.toString()}
+          contentContainerStyle={{ paddingTop: 20, paddingBottom: 20 }}
+          scrollEnabled={true}
+          nestedScrollEnabled={true}
+          renderItem={({ item }) => (
+            <View style={[styles.msg, item.from === userId ? styles.right : styles.left]}>
+              <Text style={{ color: item.from === userId ? "#fff" : "#000" }}>{item.text}</Text>
+            </View>
+          )}
+        />
 
-                  {item.from === userId && (
-                    <Ionicons
-                      name="checkmark"
-                      size={14}
-                      color="#fff"
-                      style={{ marginLeft: 6 }}
-                    />
-                  )}
-                </View>
-              </View>
-            )}
-          />
-
-          {/* INPUT BAR */}
-<View
-  style={[
-    styles.inputWrapper,
-    {
-      position: "absolute",
-      bottom: keyboardHeight,
-      left: 0,
-      right: 0,
-    },
-  ]}
->
+        {/* 📝 Input */}
+        <SafeAreaView edges={["bottom"]} style={{ backgroundColor: "#fdfbfb" }}>
+          <View style={[styles.inputWrapper, { backgroundColor: "#fdfbfb", marginTop: isKeyboardVisible ? -8 : 8 }]}>
             <TextInput
-              style={[
-                styles.chatInput,
-                { height: Math.min(100, inputHeight) },
-              ]}
+              style={styles.chatInput}
               value={chatMessage}
               onChangeText={setChatMessage}
-              multiline
-              onContentSizeChange={(e) =>
-                setInputHeight(e.nativeEvent.contentSize.height)
-              }
+              placeholder="Type a message..."
+              placeholderTextColor="#888"
+              returnKeyType="send"
+              onSubmitEditing={sendMessage}
             />
-
-            <TouchableOpacity
-              onPress={sendMessage}
+            <TouchableOpacity 
               style={styles.sendButton}
+              onPress={sendMessage}
             >
-              <Ionicons name="send" color="#fff" />
+              <Ionicons name="send" size={22} color="#fff" />
             </TouchableOpacity>
           </View>
+        </SafeAreaView>
+      </KeyboardAvoidingView>
+
+      {/*  Profile Modal */}
+      <Modal
+        visible={showProfile}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowProfile(false)}
+      >
+        <Pressable style={styles.softBackdrop} onPress={() => setShowProfile(false)}>
+          <BlurView intensity={20} tint="light" style={{ flex: 1 }} />
+        </Pressable>
+        <View style={styles.popupContainer}>
+          <BlurView intensity={40} tint="light" style={styles.popupCard}>
+            <LinearGradient
+              colors={["rgba(255,255,255,0.6)", "rgba(255,255,255,0.2)"]}
+              style={{ ...StyleSheet.absoluteFillObject }}
+            />
+            <LinearGradient colors={["#ff9a9e","#fad0c4"]} style={styles.popupAvatarGlow}>
+              <Image source={{ uri: parsedUser.avatar || DEFAULT_AVATAR }} style={styles.popupAvatar} />
+            </LinearGradient>
+            <Text style={styles.popupUsername}>{parsedUser.username}</Text>
+            <Text style={styles.popupTagline}>{parsedUser.tagline || "Hey there 👋"}</Text>
+          </BlurView>
         </View>
+      </Modal>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  header: {
-    flexDirection: "row",
-    padding: 12,
-    alignItems: "center",
-  },
-  username: { fontSize: 18, marginLeft: 10 },
-
-  msg: {
-    padding: 10,
-    margin: 5,
-    borderRadius: 10,
-    maxWidth: "70%",
-  },
+  header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "rgba(0,0,0,0.08)" },
+  userInfo: { flexDirection: "row", alignItems: "center", marginLeft: 12 },
+  avatarGlow: { padding: 2, borderRadius: 35 },
+  avatar: { width: 50, height: 50, borderRadius: 25 },
+  username: { fontSize: 18, fontWeight: "600", marginLeft: 10 },
+  msg: { padding: 10, marginVertical: 5, borderRadius: 10, maxWidth: "70%" },
   left: { backgroundColor: "#eee", alignSelf: "flex-start" },
   right: { backgroundColor: "#25D366", alignSelf: "flex-end" },
+  inputWrapper: { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingVertical: 8, backgroundColor: "#fdfbfb", borderTopWidth: 1, borderTopColor: "#ddd" },
+  chatInput: { flex: 1, backgroundColor: "#fff", paddingHorizontal: 16, paddingVertical: 10, borderRadius: 25, borderWidth: 1, borderColor: "#ccc", color: "#000", marginRight: 8, fontSize: 16 },
+  sendButton: { backgroundColor: "#25D366", width: 44, height: 44, borderRadius: 22, justifyContent: "center", alignItems: "center" },
+  disabledButton: { backgroundColor: "#95D4A3", opacity: 0.6 },
+  softBackdrop: { flex: 1, backgroundColor: "rgba(255,255,255,0.3)" },
+  popupContainer: { position: "absolute", top: 0, bottom: 0, left: 0, right: 0, justifyContent: "center", alignItems: "center", paddingTop: Platform.OS === "ios" ? 0 : 0 },
+  popupCard: { width: 280, padding: 24, borderRadius: 40, alignItems: "center", overflow: "hidden", backgroundColor: "rgba(42,33,33,0.8)", borderWidth: 2, borderColor: "rgba(35,30,30,0.5)" },
+  popupAvatarGlow: { padding: 3, borderRadius: 60, marginBottom: 12 },
+  popupAvatar: { width: 160, height: 160, borderRadius: 55 },
+  popupUsername: { fontSize: 22, fontWeight: "700", color: "#000" },
+  popupTagline: { marginTop: 6, fontSize: 14, color: "#555", textAlign: "center" },
 
-  inputWrapper: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    padding: 8,
-    borderTopWidth: 1,
-    backgroundColor: "#fff",
-  },
-
-  chatInput: {
-    flex: 1,
-    backgroundColor: "#fff",
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    marginHorizontal: 6,
-  },
-
-  sendButton: {
-    backgroundColor: "#25D366",
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: "center",
-    alignItems: "center",
-  },
 });
