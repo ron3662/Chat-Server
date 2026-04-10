@@ -24,6 +24,7 @@ import * as DocumentPicker from "expo-document-picker";
 import { uploadToCloudinary } from "../utils/cloudinaryUpload";
 import { ScrollView } from "react-native";
 import { Video } from "expo-av";
+import * as VideoThumbnails from 'expo-video-thumbnails';
 
 //Gif key
 const TENOR_API_KEY = "LIVDSRZULELA"; // temp key
@@ -64,6 +65,22 @@ export default function ChatScreen() {
   const [gifResults, setGifResults] = useState<any[]>([]);
   const [gifQuery, setGifQuery] = useState("");
   const [loadingGifs, setLoadingGifs] = useState(false);
+  const [videoThumbnails, setVideoThumbnails] = useState({});
+  
+  const generateThumbnail = async (uri) => {
+  try {
+    const { uri: thumb } = await VideoThumbnails.getThumbnailAsync(uri, {
+      time: 1000, // 1 second
+    });
+
+    setVideoThumbnails(prev => ({
+      ...prev,
+      [uri]: thumb
+    }));
+  } catch (e) {
+    console.warn("Thumbnail error:", e);
+  }
+  };
 
   //fetch trending gifs on mount
   useEffect(() => {
@@ -211,8 +228,12 @@ export default function ChatScreen() {
       else if (mimeType === "application/pdf") type = "pdf";
 
 
+
       setIsSending(true);
       const mediaUrl = await uploadToCloudinary(uri);
+      if (type === "video" && mediaUrl && !videoThumbnails[mediaUrl]) {
+          generateThumbnail(mediaUrl);
+      }
       await sendMessage(mediaUrl, type);
     } catch (error) {
       console.error("Media pick failed:", error);
@@ -338,6 +359,7 @@ export default function ChatScreen() {
                 </TouchableOpacity>
               )}
               {item.mediatype === "video" && item.media && (
+                
                 <TouchableOpacity
                   onPress={() => {
                     setPreviewMedia(item.media);
@@ -347,7 +369,7 @@ export default function ChatScreen() {
                   <View style={styles.videoContainer}>
                     <Image
                       source={{
-                        uri: "https://via.placeholder.com/200x200/FF4E50/ffffff?text=Video",
+                        uri: videoThumbnails[item.media]
                       }}
                       style={styles.mediaImage}
                     />
