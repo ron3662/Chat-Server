@@ -161,28 +161,33 @@ let clients = {};
 wss.on("connection", ws => {
   ws.on("message", async msg => {
     const data = JSON.parse(msg);
-    const type = data.type;
-    const msgData = data.message;
-
-    if (type === "auth") {
-      ws.userId = msgData.userId;
+    if (data.type === "auth") {
+      ws.userId = data.userId;
       clients[ws.userId] = ws;
       const online = Object.keys(clients);
       wss.clients.forEach(c => c.readyState === WebSocket.OPEN && c.send(JSON.stringify({ type: "online", users: online })));
     }
 
-    if (type === "message") {
-      const message = new Message({ ...msgData, time: new Date() });
+    if (data.type === "message") {
+      const message = new Message({
+        from: data.from,
+        to: data.to,
+        text: data.text,
+        media: data.media,
+        mediatype: data.mediatype,
+        time: new Date(),
+      });
+
       await message.save();
-      if (clients[msgData.to]) 
+      if (clients[data.to]) 
         {
-          sendPushNotification((await User.findById(msgData.to)).pushToken, "New message from " + (await User.findById(msgData.from)).username, msgData.text || "Sent you a media message");
-          clients[msgData.to].send(JSON.stringify(message));
+          sendPushNotification((await User.findById(data.to)).pushToken, "New message from " + (await User.findById(data.from)).username, data.text || "Sent you a media message");
+          clients[data.to].send(JSON.stringify(message));
         }
     }
 
-    if (type === "typing") {
-      if (clients[msgData.to]) clients[msgData.to].send(JSON.stringify({ type: "typing", from: msgData.from }));
+    if (data.type === "typing") {
+      if (clients[data.to]) clients[data.to].send(JSON.stringify({ type: "typing", from: data.from }));
     }
   });
 

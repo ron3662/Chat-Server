@@ -143,7 +143,7 @@ export default function ChatScreen() {
         to: selectedUserId,
         text: chatMessage || "",
         media: media || "",
-        mediaType: mediaType || "text",
+        mediatype: mediaType || "text",
         time: new Date(),
       };
 
