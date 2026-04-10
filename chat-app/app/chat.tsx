@@ -24,6 +24,10 @@ import * as ImagePicker from "expo-image-picker";
 import { uploadToCloudinary } from "../utils/cloudinaryUpload";
 import { ScrollView } from "react-native";
 
+//Gif key
+const TENOR_API_KEY = "LIVDSRZULELA"; // temp key
+const TENOR_LIMIT = 5;
+
 const SERVER_URL = "https://chat-server-jznv.onrender.com";
 const DEFAULT_AVATAR =
   "https://ui-avatars.com/api/?name=User&background=E5E5EA&color=555";
@@ -53,6 +57,55 @@ export default function ChatScreen() {
 
   const emojis = ["😀", "😂", "😍", "🔥", "👍", "🎉", "❤️", "😎", "🚀", "💯"];
   const gifs = ["🎊", "🎈", "🎁", "⭐", "✨", "🌟", "💫", "🌈", "🦋", "🌺"];
+
+  const [gifResults, setGifResults] = useState<any[]>([]);
+  const [gifQuery, setGifQuery] = useState("");
+  const [loadingGifs, setLoadingGifs] = useState(false);
+
+  //fetch trending gifs on mount
+  useEffect(() => {
+    if(showEmojiPicker)
+      fetchTrendingGIFs();
+  }, [showEmojiPicker]);
+
+    useEffect(() => {
+    if(gifQuery != "" && showEmojiPicker)
+      fetchGifQuery(gifQuery);
+  }, [gifQuery, showEmojiPicker]);
+
+  const fetchTrendingGIFs = async () => {
+  try {
+    setLoadingGifs(true);
+    const res = await axios.get(
+      `https://g.tenor.com/v1/trending?key=${TENOR_API_KEY}&limit=${TENOR_LIMIT}`
+    );
+
+    console.log("TRENDING GIFS:", res.data.results);
+    setGifResults(res.data.results);
+  } catch (error) {
+    console.log("Tenor error:", error);
+  }
+  finally {
+    setLoadingGifs(false);
+  }
+  };
+
+  const fetchGifQuery = async (query: string) => {
+  try {
+    setLoadingGifs(true);
+    const res = await axios.get(
+      `https://g.tenor.com/v1/search?key=${TENOR_API_KEY}&limit=${TENOR_LIMIT}&q=${query}`
+    );
+
+    console.log("TRENDING GIFS:", res.data.results);
+    setGifResults(res.data.results);
+  } catch (error) {
+    console.log("Tenor error:", error);
+  }
+  finally {
+    setLoadingGifs(false);
+  }
+};
 
   // Load messages and setup WebSocket
   useEffect(() => {
@@ -240,6 +293,12 @@ export default function ChatScreen() {
                   <Image source={{ uri: item.media }} style={styles.mediaImage} />
                 </TouchableOpacity>
               )}
+              {item.type === "gif" && item.media && (
+              <Image
+                source={{ uri: item.media }}
+                style={{ width: 200, height: 200, borderRadius: 12 }}
+              />
+)}
               {item.type === "video" && item.media && (
                 <TouchableOpacity onPress={() => {
                   setPreviewMedia(item.media);
@@ -329,12 +388,12 @@ export default function ChatScreen() {
           
           {/* 😊 Emoji Picker */}
           {showEmojiPicker && (
-<ScrollView
-  style={styles.emojiPickerContainer}
-  contentContainerStyle={{ paddingBottom: 20 }}
-  showsVerticalScrollIndicator={false}
-  keyboardShouldPersistTaps="handled"
->
+            <ScrollView
+              style={styles.emojiPickerContainer}
+              contentContainerStyle={{ paddingBottom: 20 }}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
               <View style={styles.emojiSection}>
                 <Text style={styles.emojiSectionTitle}>Emojis</Text>
                 <View style={styles.emojiGrid}>
@@ -368,6 +427,59 @@ export default function ChatScreen() {
                     </TouchableOpacity>
                   ))}
                 </View>
+              </View>
+              <View style={styles.emojiSection}>
+                <Text style={styles.emojiSectionTitle}>
+                  {gifQuery ? "Search Results" : "Trending GIFs 🔥"}
+                </Text>
+
+                {/* 🔍 Search */}
+                <TextInput
+                  placeholder="Search GIFs..."
+                  value={gifQuery}
+                  onChangeText={setGifQuery}
+                  style={{
+                    backgroundColor: "#fff",
+                    borderRadius: 10,
+                    padding: 8,
+                    marginBottom: 10,
+                  }}
+                />
+
+                {/* ⏳ Loader */}
+                {loadingGifs && <ActivityIndicator size="small" />}
+
+                {/* 🎞️ GIF Grid */}
+                <FlatList
+                  data={gifResults}
+                  keyExtractor={(item) => item.id}
+                  numColumns={2}
+                  scrollEnabled={false} // IMPORTANT (parent ScrollView handles scroll)
+                  renderItem={({ item }) => {
+                    const gifUrl = item?.media?.[0]?.gif?.url;
+
+                    if (!gifUrl) return null;
+
+                    return (
+                      <TouchableOpacity
+                        style={{ flex: 1, margin: 4 }}
+                        onPress={() => {
+                          sendMessage(gifUrl, "gif");
+                          setShowEmojiPicker(false);
+                        }}
+                      >
+                        <Image
+                          source={{ uri: gifUrl }}
+                          style={{
+                            width: "100%",
+                            height: 120,
+                            borderRadius: 10,
+                          }}
+                        />
+                      </TouchableOpacity>
+                    );
+                  }}
+                />
               </View>
             </ScrollView>
           )}
