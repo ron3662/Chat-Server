@@ -22,6 +22,7 @@ import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import * as ImagePicker from "expo-image-picker";
 import { uploadToCloudinary } from "../utils/cloudinaryUpload";
+import { ScrollView } from "react-native";
 
 const SERVER_URL = "https://chat-server-jznv.onrender.com";
 const DEFAULT_AVATAR =
@@ -328,7 +329,12 @@ export default function ChatScreen() {
           
           {/* 😊 Emoji Picker */}
           {showEmojiPicker && (
-            <View style={styles.emojiPickerContainer}>
+<ScrollView
+  style={styles.emojiPickerContainer}
+  contentContainerStyle={{ paddingBottom: 20 }}
+  showsVerticalScrollIndicator={false}
+  keyboardShouldPersistTaps="handled"
+>
               <View style={styles.emojiSection}>
                 <Text style={styles.emojiSectionTitle}>Emojis</Text>
                 <View style={styles.emojiGrid}>
@@ -363,7 +369,7 @@ export default function ChatScreen() {
                   ))}
                 </View>
               </View>
-            </View>
+            </ScrollView>
           )}
         </SafeAreaView>
       </KeyboardAvoidingView>
