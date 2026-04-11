@@ -65,22 +65,19 @@ export default function ChatScreen() {
   const [gifResults, setGifResults] = useState<any[]>([]);
   const [gifQuery, setGifQuery] = useState("");
   const [loadingGifs, setLoadingGifs] = useState(false);
-  const [videoThumbnails, setVideoThumbnails] = useState({});
   
   const generateThumbnail = async (uri) => {
   try {
     const { uri: thumb } = await VideoThumbnails.getThumbnailAsync(uri, {
-      time: 1000, // 1 second
+      time: 1000,
     });
 
-    setVideoThumbnails(prev => ({
-      ...prev,
-      [uri]: thumb
-    }));
+    return thumb; // ✅ return instead of state
   } catch (e) {
     console.warn("Thumbnail error:", e);
+    return null;
   }
-  };
+};
 
   //fetch trending gifs on mount
   useEffect(() => {
@@ -166,6 +163,7 @@ export default function ChatScreen() {
         time: new Date(),
       };
 
+      console.log("Sending message:", newMsg);
       wsRef.current.send(
         JSON.stringify({
           type: "message",
@@ -231,10 +229,14 @@ export default function ChatScreen() {
 
       setIsSending(true);
       const mediaUrl = await uploadToCloudinary(uri);
-      const mediaPreviewUrl = "" // For videos, we can use the video itself as a preview
-      if (type === "video" && mediaUrl && !videoThumbnails[mediaUrl]) {
-          generateThumbnail(mediaUrl);
-          mediaPreviewUrl = videoThumbnails[mediaUrl] || "";
+      let mediaPreviewUrl = "";
+      // ✅ VIDEO FIX
+      if (type === "video") {
+        const thumb = await generateThumbnail(uri);
+
+        if (thumb) {
+          mediaPreviewUrl = await uploadToCloudinary(thumb);
+        }
       }
       await sendMessage(mediaUrl, type, mediaPreviewUrl, name);
     } catch (error) {
@@ -371,7 +373,7 @@ export default function ChatScreen() {
                   <View style={styles.videoContainer}>
                     <Image
                       source={{
-                        uri: item.mediathumbNail || videoThumbnails[item.media] || "",
+                        uri: item.mediathumbNail || "",
                       }}
                       style={styles.mediaImage}
                     />
