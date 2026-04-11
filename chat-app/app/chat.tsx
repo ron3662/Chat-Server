@@ -25,7 +25,7 @@ import { uploadToCloudinary } from "../utils/cloudinaryUpload";
 import { ScrollView } from "react-native";
 import { Video } from "expo-av";
 import * as VideoThumbnails from 'expo-video-thumbnails';
-
+import Pdf from "react-native-pdf";
 //Gif key
 const TENOR_API_KEY = "LIVDSRZULELA"; // temp key
 const TENOR_LIMIT = 5;
@@ -53,7 +53,7 @@ export default function ChatScreen() {
   const [isSending, setIsSending] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [previewMedia, setPreviewMedia] = useState<string | null>(null);
-  const [previewType, setPreviewType] = useState<"image" | "video" | "gif" | null>(
+  const [previewType, setPreviewType] = useState<"image" | "video" | "gif" | "pdf" | null>(
     null,
   );
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -227,8 +227,6 @@ export default function ChatScreen() {
       else if (mimeType?.startsWith("video/")) type = "video";
       else if (mimeType === "application/pdf") type = "pdf";
 
-
-
       setIsSending(true);
       const mediaUrl = await uploadToCloudinary(uri);
       if (type === "video" && mediaUrl && !videoThumbnails[mediaUrl]) {
@@ -377,6 +375,21 @@ export default function ChatScreen() {
                   </View>
                 </TouchableOpacity>
               )}
+              {item.mediaType === "pdf" && item.media && (
+              <TouchableOpacity
+                style={styles.pdfContainer}
+                onPress={() => {
+                  setPreviewMedia(item.media);
+                  setPreviewType("pdf");
+                }}
+              >
+                <Text style={styles.pdfIcon}>📄</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.pdfTitle}>Document</Text>
+                  <Text style={styles.pdfSubtitle}>Tap to open</Text>
+                </View>
+              </TouchableOpacity>
+            )}
               {item.text && (
                 <Text style={{ color: item.from === userId ? "#fff" : "#000" }}>
                   {item.text}
@@ -651,6 +664,12 @@ export default function ChatScreen() {
               />
             </View>
           )}
+          {previewType === "pdf" && previewMedia && (
+          <Pdf
+            source={{ uri: previewMedia }}
+            style={{ width: "90%", height: "80%" }}
+          />
+        )}
           <TouchableOpacity
             style={styles.closePreviewButton}
             onPress={() => {
@@ -837,4 +856,27 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+  pdfContainer: {
+  flexDirection: "row",
+  alignItems: "center",
+  backgroundColor: "#fff",
+  padding: 10,
+  borderRadius: 10,
+  width: 200,
+  gap: 10,
+},
+
+pdfIcon: {
+  fontSize: 30,
+},
+
+pdfTitle: {
+  fontWeight: "600",
+  color: "#000",
+},
+
+pdfSubtitle: {
+  fontSize: 12,
+  color: "#666",
+},
 });
