@@ -39,6 +39,8 @@ const Message = mongoose.model("Message", {
   text: String,
   media: String,
   mediatype: String,
+  mediathumbNail: String,
+  mediaName: String,
   time: Date,
 });
 
@@ -175,6 +177,8 @@ wss.on("connection", ws => {
         text: data.text,
         media: data.media,
         mediatype: data.mediatype,
+        mediathumbNail: data.mediathumbNail,
+        mediaName: data.mediaName,
         time: new Date(),
       });
 

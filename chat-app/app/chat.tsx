@@ -149,7 +149,7 @@ export default function ChatScreen() {
     return () => ws.close();
   }, [userId, selectedUserId]);
 
-  const sendMessage = async (media?: string, mediaType?: string) => {
+  const sendMessage = async (media?: string, mediaType?: string, mediaPreviewUrl?: string, mediaName?: string) => {
     if (!wsRef.current) return;
     if (!media && !chatMessage.trim()) return;
 
@@ -161,6 +161,8 @@ export default function ChatScreen() {
         text: chatMessage || "",
         media: media || "",
         mediatype: mediaType || "text",
+        mediathumbNail: mediaPreviewUrl || "",
+        mediaName: mediaName || "",
         time: new Date(),
       };
 
@@ -229,10 +231,12 @@ export default function ChatScreen() {
 
       setIsSending(true);
       const mediaUrl = await uploadToCloudinary(uri);
+      const mediaPreviewUrl = "" // For videos, we can use the video itself as a preview
       if (type === "video" && mediaUrl && !videoThumbnails[mediaUrl]) {
           generateThumbnail(mediaUrl);
+          mediaPreviewUrl = videoThumbnails[mediaUrl] || "";
       }
-      await sendMessage(mediaUrl, type);
+      await sendMessage(mediaUrl, type, mediaPreviewUrl, name);
     } catch (error) {
       console.error("Media pick failed:", error);
       setIsSending(false);
@@ -367,7 +371,7 @@ export default function ChatScreen() {
                   <View style={styles.videoContainer}>
                     <Image
                       source={{
-                        uri: videoThumbnails[item.media]
+                        uri: item.mediathumbNail || videoThumbnails[item.media] || "",
                       }}
                       style={styles.mediaImage}
                     />
@@ -375,7 +379,7 @@ export default function ChatScreen() {
                   </View>
                 </TouchableOpacity>
               )}
-              {item.mediaType === "pdf" && item.media && (
+              {item.mediatype === "pdf" && item.media && (
               <TouchableOpacity
                 style={styles.pdfContainer}
                 onPress={() => {
@@ -385,7 +389,7 @@ export default function ChatScreen() {
               >
                 <Text style={styles.pdfIcon}>📄</Text>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.pdfTitle}>Document</Text>
+                  <Text style={styles.pdfTitle}>{item.mediaName}</Text>
                   <Text style={styles.pdfSubtitle}>Tap to open</Text>
                 </View>
               </TouchableOpacity>
