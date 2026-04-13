@@ -148,6 +148,7 @@ export default function ChatScreen() {
 
   const sendMessage = async () => {
     try {
+      setChatMessage(prev => ({ ...prev, from: userId, to: selectedUserId, time: new Date() }));
       setIsSending(true);
       wsRef.current.send(
         JSON.stringify({
@@ -156,7 +157,13 @@ export default function ChatScreen() {
         }),
       );
       setMessages((prev) => [...prev, chatMessage]);
-      setChatMessage({ from: "", to: "", text: "", media: [], time: new Date() });
+setChatMessage({
+  from: userId,
+  to: selectedUserId,
+  text: "",
+  media: [],
+  time: new Date(),
+});
     } catch (error) {
       console.error("Failed to send message:", error);
     } finally {
@@ -433,24 +440,55 @@ export default function ChatScreen() {
             >
               <Text style={{ fontSize: 20 }}>😊</Text>
             </TouchableOpacity>
-            <TextInput
-              style={styles.chatInput}
-              value={chatMessage}
-              onChangeText={handleTyping}
-              placeholder="Type a message..."
-              placeholderTextColor="#888"
-              returnKeyType="send"
-              onSubmitEditing={() => sendMessage()}
-              multiline
-              maxHeight={80}
-            />
+            <View style={styles.inputContainer}>
+              
+              {/* 📂 Selected Files (WRAPS properly) */}
+              {chatMessage.media.length > 0 && (
+                <View style={styles.filesContainer}>
+                  {chatMessage.media.map((file, index) => (
+                    <View key={index} style={styles.fileItem}>
+                      <Image
+                        source={{ uri: file.mediaPreviewUrl || file.mediaUrl }}
+                        style={styles.fileImage}
+                      />
+
+                      {/* ❌ Remove button */}
+                      <TouchableOpacity
+                        style={styles.removeButton}
+                        onPress={() => {
+                          setChatMessage(prev => ({
+                            ...prev,
+                            media: prev.media.filter((_, i) => i !== index),
+                          }));
+                        }}
+                      >
+                        <Text style={{ fontSize: 14, color: "#fff" }}>✕</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              {/* 📝 Text input ALWAYS at bottom */}
+              <TextInput
+                style={styles.chatInput}
+                value={chatMessage.text || ""}
+                onChangeText={handleTyping}
+                placeholder="Type a message..."
+                placeholderTextColor="#888"
+                returnKeyType="send"
+                onSubmitEditing={() => sendMessage()}
+                multiline
+                maxHeight={80}
+              />
+            </View>
             <TouchableOpacity
               style={[
                 styles.sendButton,
-                (isSending || !chatMessage.trim()) && styles.disabledSendButton,
+                (isSending || !chatMessage.text.trim()) && styles.disabledSendButton,
               ]}
               onPress={() => sendMessage()}
-              disabled={isSending || !chatMessage.trim()}
+              disabled= {isSending ||(!chatMessage.text.trim() && chatMessage.media.length === 0)}
             >
               {isSending ? (
                 <ActivityIndicator size="small" color="#fff" />
@@ -538,8 +576,19 @@ export default function ChatScreen() {
                       <TouchableOpacity
                         style={{ flex: 1, margin: 4 }}
                         onPress={() => {
-                          sendMessage(gifUrl, "gif");
-                          setShowEmojiPicker(false);
+                        setChatMessage(prev => ({
+                          ...prev,
+                          media: [
+                            ...prev.media,
+                            {
+                              mediaType: "gif",
+                              mediaName: item.title || "GIF",
+                              mediaPreviewUrl: gifUrl,
+                              mediaUrl: gifUrl,
+                            },
+                          ],
+                        }));
+                        setShowEmojiPicker(false);
                         }}
                       >
                         <Image
@@ -724,17 +773,52 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  chatInput: {
-    flex: 1,
-    backgroundColor: "#fff",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: "#ccc",
-    color: "#000",
-    fontSize: 16,
-  },
+  inputContainer: {
+  flex: 1,
+  backgroundColor: "#fff",
+  borderRadius: 20,
+  borderWidth: 1,
+  borderColor: "#ccc",
+  padding: 8,
+  justifyContent: "flex-end", // 🔥 keeps input at bottom
+},
+filesContainer: {
+  flexDirection: "row",
+  flexWrap: "wrap",   // 🔥 enables wrapping
+  gap: 8,
+  marginBottom: 6,
+},
+fileItem: {
+  width: 50,
+  height: 50,
+  borderRadius: 10,
+  overflow: "hidden",
+  position: "relative",
+},
+fileImage: {
+  width: "100%",
+  height: "100%",
+},
+removeButton: {
+  position: "absolute",
+  top: -6,
+  right: -6,
+  backgroundColor: "#000",
+  borderRadius: 10,
+  width: 18,
+  height: 18,
+  justifyContent: "center",
+  alignItems: "center",
+},
+chatInput: {
+  minHeight: 40,
+  maxHeight: 80,
+  paddingHorizontal: 12,
+  paddingVertical: 8,
+  borderRadius: 15,
+  backgroundColor: "#fff",
+  color: "#000",
+},
   sendButton: {
     backgroundColor: "#25D366",
     width: 40,
