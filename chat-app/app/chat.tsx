@@ -25,7 +25,7 @@ import { uploadToCloudinary } from "../utils/cloudinaryUpload";
 import { ScrollView } from "react-native";
 import { Video } from "expo-av";
 import * as VideoThumbnails from 'expo-video-thumbnails';
-import Pdf from "react-native-pdf";
+
 //Gif key
 const TENOR_API_KEY = "LIVDSRZULELA"; // temp key
 const TENOR_LIMIT = 5;
@@ -146,37 +146,49 @@ export default function ChatScreen() {
     return () => ws.close();
   }, [userId, selectedUserId]);
 
-  const sendMessage = async () => {
-    try {
-      setChatMessage(prev => ({ ...prev, from: userId, to: selectedUserId, time: new Date() }));
-      setIsSending(true);
-      wsRef.current.send(
-        JSON.stringify({
-          type: "message",
-          ...chatMessage,
-        }),
-      );
-      setMessages((prev) => [...prev, chatMessage]);
-setChatMessage({
-  from: userId,
-  to: selectedUserId,
-  text: "",
-  media: [],
-  time: new Date(),
-});
-    } catch (error) {
-      console.error("Failed to send message:", error);
-    } finally {
-      setIsSending(false);
-    }
-  };
+const sendMessage = async () => {
+  try {
+    if (!chatMessage.text.trim() && chatMessage.media.length === 0) return;
+
+    setIsSending(true);
+
+    const finalMessage = {
+      ...chatMessage,
+      from: userId,
+      to: selectedUserId,
+      time: new Date(),
+    };
+
+    wsRef.current?.send(
+      JSON.stringify({
+        type: "message",
+        ...finalMessage,
+      })
+    );
+
+    setMessages(prev => [...prev, finalMessage]);
+
+    setChatMessage({
+      from: userId,
+      to: selectedUserId,
+      text: "",
+      media: [],
+      time: new Date(),
+    });
+
+  } catch (error) {
+    console.error("Failed to send message:", error);
+  } finally {
+    setIsSending(false);
+  }
+};
 
   const handleTyping = (text: string) => {
     setChatMessage((prev) => ({ ...prev, text }));
 
     if (!typingIndicatorRef.current && wsRef.current) {
       typingIndicatorRef.current = true;
-      wsRef.current.send(
+      wsRef.current?.send(
         JSON.stringify({
           type: "typing",
           from: userId,
@@ -447,11 +459,15 @@ setChatMessage({
                 <View style={styles.filesContainer}>
                   {chatMessage.media.map((file, index) => (
                     <View key={index} style={styles.fileItem}>
-                      <Image
-                        source={{ uri: file.mediaPreviewUrl || file.mediaUrl }}
-                        style={styles.fileImage}
-                      />
-
+                    {file.mediaType === "image" || file.mediaType === "gif" ? (
+                      <Image source={{ uri: file.mediaUrl }} style={styles.fileImage} />
+                    ) : file.mediaType === "video" ? (
+                      <Image source={{ uri: file.mediaPreviewUrl }} style={styles.fileImage} />
+                    ) : (
+                      <View style={[styles.fileImage, { justifyContent: "center", alignItems: "center" }]}>
+                        <Text>📄</Text>
+                      </View>
+                    )}
                       {/* ❌ Remove button */}
                       <TouchableOpacity
                         style={styles.removeButton}
@@ -485,7 +501,7 @@ setChatMessage({
             <TouchableOpacity
               style={[
                 styles.sendButton,
-                (isSending || !chatMessage.text.trim()) && styles.disabledSendButton,
+                (isSending || (!chatMessage.text.trim() && chatMessage.media.length === 0))&& styles.disabledSendButton,
               ]}
               onPress={() => sendMessage()}
               disabled= {isSending ||(!chatMessage.text.trim() && chatMessage.media.length === 0)}
@@ -531,7 +547,7 @@ setChatMessage({
                       key={gif}
                       style={styles.emojiButton}
                       onPress={() => {
-                        setChatMessage({...chatMessage, text: chatMessage.text + emoji});
+                        setChatMessage({...chatMessage, text: chatMessage.text + gif});
                         setShowEmojiPicker(false);
                       }}
                     >
@@ -712,12 +728,7 @@ setChatMessage({
               />
             </View>
           )}
-          {previewType === "pdf" && previewMedia && (
-          <Pdf
-            source={{ uri: previewMedia }}
-            style={{ width: "90%", height: "80%" }}
-          />
-        )}
+
           <TouchableOpacity
             style={styles.closePreviewButton}
             onPress={() => {
