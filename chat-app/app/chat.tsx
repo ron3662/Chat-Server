@@ -41,7 +41,7 @@ export default function ChatScreen() {
   const selectedUserId = parsedUser.id;
 
   const [messages, setMessages] = useState<any[]>([]);
-  const [chatMessage, setChatMessage] = useState("");
+  const [chatMessage, setChatMessage] = useState({ from: "" , to: "", text: "", media : [], time: new Date() });
   const wsRef = useRef<WebSocket | null>(null);
   const flatListRef = useRef<FlatList>(null);
   const router = useRouter();
@@ -146,32 +146,17 @@ export default function ChatScreen() {
     return () => ws.close();
   }, [userId, selectedUserId]);
 
-  const sendMessage = async (media?: string, mediaType?: string, mediaPreviewUrl?: string, mediaName?: string) => {
-    if (!wsRef.current) return;
-    if (!media && !chatMessage.trim()) return;
-
+  const sendMessage = async () => {
     try {
       setIsSending(true);
-      const newMsg = {
-        from: userId,
-        to: selectedUserId,
-        text: chatMessage || "",
-        media: media || "",
-        mediatype: mediaType || "text",
-        mediathumbNail: mediaPreviewUrl || "",
-        mediaName: mediaName || "",
-        time: new Date(),
-      };
-
-      console.log("Sending message:", newMsg);
       wsRef.current.send(
         JSON.stringify({
           type: "message",
-          ...newMsg,
+          ...chatMessage,
         }),
       );
-      setMessages((prev) => [...prev, newMsg]);
-      setChatMessage("");
+      setMessages((prev) => [...prev, chatMessage]);
+      setChatMessage({ from: "", to: "", text: "", media: [], time: new Date() });
     } catch (error) {
       console.error("Failed to send message:", error);
     } finally {
@@ -180,7 +165,7 @@ export default function ChatScreen() {
   };
 
   const handleTyping = (text: string) => {
-    setChatMessage(text);
+    setChatMessage((prev) => ({ ...prev, text }));
 
     if (!typingIndicatorRef.current && wsRef.current) {
       typingIndicatorRef.current = true;
@@ -204,44 +189,42 @@ export default function ChatScreen() {
       const result = await DocumentPicker.getDocumentAsync({
         type: "*/*",
         copyToCacheDirectory: true,
+        multiple: true,
       });
 
       if (result.canceled) return;
 
-      const file = result.assets[0];
-
-      const uri = file.uri;
-      const name = file.name;
-      const mimeType = file.mimeType;
-
-      // 🔥 Detect file type
-      let type = "file";
-
-      if (mimeType?.startsWith("image/")) 
+      for (const file of result.assets) 
       {
-        type = "image";
-        if (mimeType === "image/gif") {
-          type = "gif";
-        }
-      }
-      else if (mimeType?.startsWith("video/")) type = "video";
-      else if (mimeType === "application/pdf") type = "pdf";
+        const uri = file.uri;
+        const name = file.name;
+        const mimeType = file.mimeType;
+        let mediaPreviewUrl = "";
+        // 🔥 Detect file type
+        let type = "file";
 
-      setIsSending(true);
-      const mediaUrl = await uploadToCloudinary(uri);
-      let mediaPreviewUrl = "";
-      // ✅ VIDEO FIX
-      if (type === "video") {
-        const thumb = await generateThumbnail(uri);
-
-        if (thumb) {
-          mediaPreviewUrl = await uploadToCloudinary(thumb);
+        if (mimeType?.startsWith("image/")) 
+        {
+          type = "image";
+          if (mimeType === "image/gif") {
+            type = "gif";
+          }
         }
+        else if (mimeType?.startsWith("video/")) 
+        {
+          type = "video";
+          mediaPreviewUrl = await generateThumbnail(uri);
+        }
+        else if (mimeType === "application/pdf") type = "pdf";
+
+        setChatMessage((prev) => ({
+          ...prev,
+          media: [...prev.media, { mediaType: type, mediaName: name, mediaPreviewUrl: mediaPreviewUrl || "", mediaUrl: uri || "" }],
+        }));
       }
-      await sendMessage(mediaUrl, type, mediaPreviewUrl, name);
+
     } catch (error) {
       console.error("Media pick failed:", error);
-      setIsSending(false);
     }
   };
 
@@ -336,66 +319,76 @@ export default function ChatScreen() {
                 item.from === userId ? styles.right : styles.left,
               ]}
             >
-              {item.mediatype === "image" && item.media && (
-                <TouchableOpacity
-                  onPress={() => {
-                    setPreviewMedia(item.media);
-                    setPreviewType("image");
-                  }}
-                >
-                  <Image
-                    source={{ uri: item.media }}
-                    style={styles.mediaImage}
-                  />
-                </TouchableOpacity>
-              )}
-              {item.mediatype === "gif" && item.media && (
-                <TouchableOpacity
-                  onPress={() => {
-                    setPreviewMedia(item.media);
-                    setPreviewType("gif");
-                  }}
-                >
-                <Image
-                  source={{ uri: item.media }}
-                  style={styles.mediaImage}
-                />
-                </TouchableOpacity>
-              )}
-              {item.mediatype === "video" && item.media && (
-                
-                <TouchableOpacity
-                  onPress={() => {
-                    setPreviewMedia(item.media);
-                    setPreviewType("video");
-                  }}
-                >
-                  <View style={styles.videoContainer}>
-                    <Image
-                      source={{
-                        uri: item.mediathumbNail || "",
+              {item.media && item.media.length > 0 && item.media.map((mediaItem, index) => {
+                if (mediaItem.mediaType === "image") {
+                  return (
+                    <TouchableOpacity
+                      key={index}
+                      onPress={() => {
+                        setPreviewMedia(mediaItem.mediaUrl);
+                        setPreviewType("image");
                       }}
-                      style={styles.mediaImage}
-                    />
-                    <Text style={styles.playIcon}>▶️</Text>
-                  </View>
-                </TouchableOpacity>
-              )}
-              {item.mediatype === "pdf" && item.media && (
-              <TouchableOpacity
-                style={styles.pdfContainer}
-                onPress={() => {
-                  setPreviewMedia(item.media);
-                  setPreviewType("pdf");
-                }}
-              >
-                <Text style={styles.pdfIcon}>📄</Text>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.pdfTitle}>{item.mediaName}</Text>
-                  <Text style={styles.pdfSubtitle}>Tap to open</Text>
-                </View>
-              </TouchableOpacity>
-            )}
+                    >
+                      <Image
+                        source={{ uri: mediaItem.mediaUrl }}
+                        style={styles.mediaImage}
+                      />
+                    </TouchableOpacity>
+                  );
+                }
+                else if (mediaItem.mediaType === "gif") {
+                  return (
+                    <TouchableOpacity
+                      key={index}
+                      onPress={() => {
+                        setPreviewMedia(mediaItem.mediaUrl);
+                        setPreviewType("gif");
+                      }}
+                    >
+                      <Image
+                        source={{ uri: mediaItem.mediaUrl }}
+                        style={styles.mediaImage}
+                      />
+                    </TouchableOpacity>
+                  );
+                }
+                else if (mediaItem.mediaType === "video") {
+                  return (
+                    <TouchableOpacity
+                      key={index}
+                      onPress={() => {
+                        setPreviewMedia(mediaItem.mediaUrl);
+                        setPreviewType("video");
+                      }}
+                    >
+                      <View style={styles.videoContainer}>
+                        <Image
+                          source={{
+                            uri: mediaItem.mediaPreviewUrl || "",
+                          }}
+                          style={styles.mediaImage}
+                        />
+                        <Text style={styles.playIcon}>▶️</Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                }
+                else if (mediaItem.mediaType === "pdf") {
+                  return (
+                    <TouchableOpacity
+                      key={index}
+                      style={styles.pdfContainer}
+                      onPress={() => {
+                        setPreviewMedia(mediaItem.mediaUrl);
+                        setPreviewType("pdf");
+                      }}
+                    >
+                      <Text style={styles.pdfIcon}>📄</Text>
+                    </TouchableOpacity>
+                  );
+                }
+                return null;
+              })}
               {item.text && (
                 <Text style={{ color: item.from === userId ? "#fff" : "#000" }}>
                   {item.text}
@@ -483,7 +476,7 @@ export default function ChatScreen() {
                       key={emoji}
                       style={styles.emojiButton}
                       onPress={() => {
-                        setChatMessage(chatMessage + emoji);
+                        setChatMessage({...chatMessage, text: chatMessage.text + emoji});
                         setShowEmojiPicker(false);
                       }}
                     >
@@ -500,7 +493,7 @@ export default function ChatScreen() {
                       key={gif}
                       style={styles.emojiButton}
                       onPress={() => {
-                        setChatMessage(chatMessage + gif);
+                        setChatMessage({...chatMessage, text: chatMessage.text + emoji});
                         setShowEmojiPicker(false);
                       }}
                     >
