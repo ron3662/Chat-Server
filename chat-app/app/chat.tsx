@@ -25,7 +25,8 @@ import * as DocumentPicker from "expo-document-picker";
 import { uploadToCloudinary } from "../utils/cloudinaryUpload";
 import { ScrollView } from "react-native";
 import { Video } from "expo-av";
-import * as VideoThumbnails from 'expo-video-thumbnails';
+import * as VideoThumbnails from "expo-video-thumbnails";
+import ProfileViewPopup from "../components/popup";
 
 //Gif key
 const TENOR_API_KEY = "LIVDSRZULELA"; // temp key
@@ -42,7 +43,13 @@ export default function ChatScreen() {
   const selectedUserId = parsedUser.id;
 
   const [messages, setMessages] = useState<any[]>([]);
-  const [chatMessage, setChatMessage] = useState({ from: "" , to: "", text: "", media : [], time: new Date() });
+  const [chatMessage, setChatMessage] = useState({
+    from: "",
+    to: "",
+    text: "",
+    media: [],
+    time: new Date(),
+  });
   const wsRef = useRef<WebSocket | null>(null);
   const flatListRef = useRef<FlatList>(null);
   const router = useRouter();
@@ -54,9 +61,9 @@ export default function ChatScreen() {
   const [isSending, setIsSending] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [previewMedia, setPreviewMedia] = useState<string | null>(null);
-  const [previewType, setPreviewType] = useState<"image" | "video" | "gif" | "file" | null>(
-    null,
-  );
+  const [previewType, setPreviewType] = useState<
+    "image" | "video" | "gif" | "file" | null
+  >(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const typingIndicatorRef = useRef<boolean>(false);
 
@@ -66,19 +73,19 @@ export default function ChatScreen() {
   const [gifResults, setGifResults] = useState<any[]>([]);
   const [gifQuery, setGifQuery] = useState("");
   const [loadingGifs, setLoadingGifs] = useState(false);
-  
-  const generateThumbnail = async (uri) => {
-  try {
-    const { uri: thumb } = await VideoThumbnails.getThumbnailAsync(uri, {
-      time: 1000,
-    });
 
-    return thumb; // ✅ return instead of state
-  } catch (e) {
-    console.warn("Thumbnail error:", e);
-    return null;
-  }
-};
+  const generateThumbnail = async (uri) => {
+    try {
+      const { uri: thumb } = await VideoThumbnails.getThumbnailAsync(uri, {
+        time: 1000,
+      });
+
+      return thumb; // ✅ return instead of state
+    } catch (e) {
+      console.warn("Thumbnail error:", e);
+      return null;
+    }
+  };
 
   //fetch trending gifs on mount
   useEffect(() => {
@@ -147,79 +154,81 @@ export default function ChatScreen() {
     return () => ws.close();
   }, [userId, selectedUserId]);
 
-const sendMessage = async () => {
-  try {
-    if (!chatMessage.text.trim() && chatMessage.media.length === 0) return;
+  const sendMessage = async () => {
+    try {
+      if (!chatMessage.text.trim() && chatMessage.media.length === 0) return;
 
-    setIsSending(true);
+      setIsSending(true);
 
-    //upload to cloudinary and get URLs for media items
-    const mediaWithUrls = await Promise.all(
-      chatMessage.media.map(async (mediaItem) => {
-        if (mediaItem.mediaUrl.startsWith("http")) {
-          return mediaItem; // already has URL (e.g., GIFs)
+      //upload to cloudinary and get URLs for media items
+      const mediaWithUrls = await Promise.all(
+        chatMessage.media.map(async (mediaItem) => {
+          if (mediaItem.mediaUrl.startsWith("http")) {
+            return mediaItem; // already has URL (e.g., GIFs)
+          } else {
+            const uploadedUrl = await uploadToCloudinary(mediaItem.mediaUrl);
+            const mediaPreviewUrl =
+              mediaItem.mediaType === "video" && mediaItem.mediaPreviewUrl
+                ? await uploadToCloudinary(mediaItem.mediaPreviewUrl)
+                : "";
+            return {
+              ...mediaItem,
+              mediaUrl: uploadedUrl,
+              mediaPreviewUrl: mediaPreviewUrl,
+            };
+          }
+        }),
+      );
+
+      const finalMessage = {
+        ...chatMessage,
+        from: userId,
+        to: selectedUserId,
+        media: mediaWithUrls,
+        time: new Date(),
+      };
+
+      wsRef.current?.send(
+        JSON.stringify({
+          type: "message",
+          ...finalMessage,
+        }),
+      );
+
+      setMessages((prev) => [...prev, finalMessage]);
+
+      setChatMessage({
+        from: userId,
+        to: selectedUserId,
+        text: "",
+        media: [],
+        time: new Date(),
+      });
+    } catch (error) {
+      console.error("Failed to send message:", error);
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const handleFilePreview = (mediaType: string, mediaUrl: string) => {
+    if (mediaType === "image" || mediaType === "gif") {
+      setPreviewType(mediaType);
+      setPreviewMedia(mediaUrl);
+    } else if (mediaType === "video") {
+      setPreviewType("video");
+      setPreviewMedia(mediaUrl);
+    } else {
+      // For other files, we can either show a generic preview or attempt to open with Linking
+      Linking.canOpenURL(mediaUrl).then((supported) => {
+        if (supported) {
+          Linking.openURL(mediaUrl);
         } else {
-          const uploadedUrl = await uploadToCloudinary(mediaItem.mediaUrl);
-          const mediaPreviewUrl = (mediaItem.mediaType === "video" && mediaItem.mediaPreviewUrl) ? await uploadToCloudinary(mediaItem.mediaPreviewUrl) : "";
-          return {
-            ...mediaItem,
-            mediaUrl: uploadedUrl,
-            mediaPreviewUrl: mediaPreviewUrl
-          };
+          setPreviewType("file");
         }
-      })
-    );
-    
-    const finalMessage = {
-      ...chatMessage,
-      from: userId,
-      to: selectedUserId,
-      media: mediaWithUrls,
-      time: new Date(),
-    };
-
-    wsRef.current?.send(
-      JSON.stringify({
-        type: "message",
-        ...finalMessage,
-      })
-    );
-
-    setMessages(prev => [...prev, finalMessage]);
-
-    setChatMessage({
-      from: userId,
-      to: selectedUserId,
-      text: "",
-      media: [],
-      time: new Date(),
-    });
-
-  } catch (error) {
-    console.error("Failed to send message:", error);
-  } finally {
-    setIsSending(false);
-  }
-};
-
-const handleFilePreview = (mediaType: string, mediaUrl: string) => {
-  if (mediaType === "image" || mediaType === "gif") {
-    setPreviewType(mediaType);
-    setPreviewMedia(mediaUrl);
-  } else if (mediaType === "video") {
-    setPreviewType("video");
-    setPreviewMedia(mediaUrl);
-  } else {
-    // For other files, we can either show a generic preview or attempt to open with Linking
-    Linking.canOpenURL(mediaUrl).then(supported => { 
-      if (supported) {
-        Linking.openURL(mediaUrl);
-      } else {
-        setPreviewType("file");  
-      }
-    });
-  }
-};
+      });
+    }
+  };
   const handleTyping = (text: string) => {
     setChatMessage((prev) => ({ ...prev, text }));
 
@@ -250,8 +259,7 @@ const handleFilePreview = (mediaType: string, mediaUrl: string) => {
 
       if (result.canceled) return;
 
-      for (const file of result.assets) 
-      {
+      for (const file of result.assets) {
         const uri = file.uri;
         const name = file.name;
         const mimeType = file.mimeType;
@@ -259,25 +267,29 @@ const handleFilePreview = (mediaType: string, mediaUrl: string) => {
         // 🔥 Detect file type
         let type = "file";
 
-        if (mimeType?.startsWith("image/")) 
-        {
+        if (mimeType?.startsWith("image/")) {
           type = "image";
           if (mimeType === "image/gif") {
             type = "gif";
           }
-        }
-        else if (mimeType?.startsWith("video/")) 
-        {
+        } else if (mimeType?.startsWith("video/")) {
           type = "video";
           mediaPreviewUrl = await generateThumbnail(uri);
         }
 
         setChatMessage((prev) => ({
           ...prev,
-          media: [...prev.media, { mediaType: type, mediaName: name, mediaPreviewUrl: mediaPreviewUrl || "", mediaUrl: uri || "" }],
+          media: [
+            ...prev.media,
+            {
+              mediaType: type,
+              mediaName: name,
+              mediaPreviewUrl: mediaPreviewUrl || "",
+              mediaUrl: uri || "",
+            },
+          ],
         }));
       }
-
     } catch (error) {
       console.error("Media pick failed:", error);
     }
@@ -308,12 +320,12 @@ const handleFilePreview = (mediaType: string, mediaUrl: string) => {
   }, []);
 
   const getFileIcon = (type) => {
-  if (type === "pdf") return "📄";
-  if (type === "doc" || type === "docx") return "📝";
-  if (type === "xls" || type === "xlsx") return "📊";
-  if (type === "zip") return "🗜️";
-  return "📁";
-};
+    if (type === "pdf") return "📄";
+    if (type === "doc" || type === "docx") return "📝";
+    if (type === "xls" || type === "xlsx") return "📊";
+    if (type === "zip") return "🗜️";
+    return "📁";
+  };
 
   return (
     <SafeAreaView
@@ -382,66 +394,78 @@ const handleFilePreview = (mediaType: string, mediaUrl: string) => {
                 item.from === userId ? styles.right : styles.left,
               ]}
             >
-              {item.media && item.media.length > 0 && item.media.map((mediaItem, index) => {
-                if (mediaItem.mediaType === "image" || mediaItem.mediaType === "gif" ) {
-                  return (
-                    <TouchableOpacity
-                      key={index}
-                      onPress={() => {
-                        handleFilePreview(mediaItem.mediaType, mediaItem.mediaUrl);
-                      }}
-                    >
-                      <Image
-                        source={{ uri: mediaItem.mediaUrl }}
-                        style={styles.mediaImage}
-                      />
-                    </TouchableOpacity>
-                  );
-                }
-                else if (mediaItem.mediaType === "video") {
-                  return (
-                    <TouchableOpacity
-                      key={index}
-                      onPress={() => {
-                        handleFilePreview(mediaItem.mediaType, mediaItem.mediaUrl);
-                      }}
-                    >
-                      <View style={styles.videoContainer}>
+              {item.media &&
+                item.media.length > 0 &&
+                item.media.map((mediaItem, index) => {
+                  if (
+                    mediaItem.mediaType === "image" ||
+                    mediaItem.mediaType === "gif"
+                  ) {
+                    return (
+                      <TouchableOpacity
+                        key={index}
+                        onPress={() => {
+                          handleFilePreview(
+                            mediaItem.mediaType,
+                            mediaItem.mediaUrl,
+                          );
+                        }}
+                      >
                         <Image
-                          source={{
-                            uri: mediaItem.mediaPreviewUrl || "",
-                          }}
+                          source={{ uri: mediaItem.mediaUrl }}
                           style={styles.mediaImage}
                         />
-                        <Text style={styles.playIcon}>▶️</Text>
-                      </View>
-                    </TouchableOpacity>
-                  );
-                }
-                else if (mediaItem.mediaType === "file") {
-                  return (
-                    <TouchableOpacity
-                    style={styles.filePreviewContainer}
-                    onPress={() => handleFilePreview(mediaItem.mediaType, mediaItem.mediaUrl)}
-                  >
-                    <Text style={styles.fileIcon}>
-                      {getFileIcon(mediaItem.mediaType)}
-                    </Text>
+                      </TouchableOpacity>
+                    );
+                  } else if (mediaItem.mediaType === "video") {
+                    return (
+                      <TouchableOpacity
+                        key={index}
+                        onPress={() => {
+                          handleFilePreview(
+                            mediaItem.mediaType,
+                            mediaItem.mediaUrl,
+                          );
+                        }}
+                      >
+                        <View style={styles.videoContainer}>
+                          <Image
+                            source={{
+                              uri: mediaItem.mediaPreviewUrl || "",
+                            }}
+                            style={styles.mediaImage}
+                          />
+                          <Text style={styles.playIcon}>▶️</Text>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  } else if (mediaItem.mediaType === "file") {
+                    return (
+                      <TouchableOpacity
+                        style={styles.filePreviewContainer}
+                        onPress={() =>
+                          handleFilePreview(
+                            mediaItem.mediaType,
+                            mediaItem.mediaUrl,
+                          )
+                        }
+                      >
+                        <Text style={styles.fileIcon}>
+                          {getFileIcon(mediaItem.mediaType)}
+                        </Text>
 
-                    <View style={{ flex: 1 }}>
-                      <Text numberOfLines={1} style={styles.fileName}>
-                        {mediaItem.mediaName || "File"}
-                      </Text>
+                        <View style={{ flex: 1 }}>
+                          <Text numberOfLines={1} style={styles.fileName}>
+                            {mediaItem.mediaName || "File"}
+                          </Text>
 
-                      <Text style={styles.fileHint}>
-                        Tap to open
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-                  );
-                }
-                return null;
-              })}
+                          <Text style={styles.fileHint}>Tap to open</Text>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  }
+                  return null;
+                })}
               {item.text && (
                 <Text style={{ color: item.from === userId ? "#fff" : "#000" }}>
                   {item.text}
@@ -487,32 +511,44 @@ const handleFilePreview = (mediaType: string, mediaUrl: string) => {
               <Text style={{ fontSize: 20 }}>😊</Text>
             </TouchableOpacity>
             <View style={styles.inputContainer}>
-              
               {/* 📂 Selected Files (WRAPS properly) */}
               {chatMessage.media.length > 0 && (
                 <View style={styles.filesContainer}>
                   {chatMessage.media.map((file, index) => (
                     <View key={index} style={styles.fileItem}>
-                    {file.mediaType === "image" || file.mediaType === "gif" ? (
-                      <Image source={{ uri: file.mediaUrl }} style={styles.fileImage} />
-                    ) : file.mediaType === "video" ? (
-                      <Image source={{ uri: file.mediaPreviewUrl }} style={styles.fileImage} />
-                    ) : (
-                      <View style={[styles.fileImage, { justifyContent: "center", alignItems: "center" }]}>
-                        <Text>📄</Text>
-                      </View>
-                    )}
+                      {file.mediaType === "image" ||
+                      file.mediaType === "gif" ? (
+                        <Image
+                          source={{ uri: file.mediaUrl }}
+                          style={styles.fileImage}
+                        />
+                      ) : file.mediaType === "video" ? (
+                        <Image
+                          source={{ uri: file.mediaPreviewUrl }}
+                          style={styles.fileImage}
+                        />
+                      ) : (
+                        <View
+                          style={[
+                            styles.fileImage,
+                            { justifyContent: "center", alignItems: "center" },
+                          ]}
+                        >
+                          <Text>📄</Text>
+                        </View>
+                      )}
 
-                    <TouchableOpacity
+                      <TouchableOpacity
                         style={styles.removeButton}
                         onPress={() => {
-                          setChatMessage(prev => ({
+                          setChatMessage((prev) => ({
                             ...prev,
                             media: prev.media.filter((_, i) => i !== index),
                           }));
-                        }}>
+                        }}
+                      >
                         <Text style={{ fontSize: 14, color: "#fff" }}>❌</Text>
-                    </TouchableOpacity>
+                      </TouchableOpacity>
                     </View>
                   ))}
                 </View>
@@ -534,10 +570,16 @@ const handleFilePreview = (mediaType: string, mediaUrl: string) => {
             <TouchableOpacity
               style={[
                 styles.sendButton,
-                (isSending || (!chatMessage.text.trim() && chatMessage.media.length === 0))&& styles.disabledSendButton,
+                (isSending ||
+                  (!chatMessage.text.trim() &&
+                    chatMessage.media.length === 0)) &&
+                  styles.disabledSendButton,
               ]}
               onPress={() => sendMessage()}
-              disabled= {isSending ||(!chatMessage.text.trim() && chatMessage.media.length === 0)}
+              disabled={
+                isSending ||
+                (!chatMessage.text.trim() && chatMessage.media.length === 0)
+              }
             >
               {isSending ? (
                 <ActivityIndicator size="small" color="#fff" />
@@ -563,7 +605,10 @@ const handleFilePreview = (mediaType: string, mediaUrl: string) => {
                       key={emoji}
                       style={styles.emojiButton}
                       onPress={() => {
-                        setChatMessage({...chatMessage, text: chatMessage.text + emoji});
+                        setChatMessage({
+                          ...chatMessage,
+                          text: chatMessage.text + emoji,
+                        });
                         setShowEmojiPicker(false);
                       }}
                     >
@@ -580,7 +625,10 @@ const handleFilePreview = (mediaType: string, mediaUrl: string) => {
                       key={gif}
                       style={styles.emojiButton}
                       onPress={() => {
-                        setChatMessage({...chatMessage, text: chatMessage.text + gif});
+                        setChatMessage({
+                          ...chatMessage,
+                          text: chatMessage.text + gif,
+                        });
                         setShowEmojiPicker(false);
                       }}
                     >
@@ -625,19 +673,19 @@ const handleFilePreview = (mediaType: string, mediaUrl: string) => {
                       <TouchableOpacity
                         style={{ flex: 1, margin: 4 }}
                         onPress={() => {
-                        setChatMessage(prev => ({
-                          ...prev,
-                          media: [
-                            ...prev.media,
-                            {
-                              mediaType: "gif",
-                              mediaName: item.title || "GIF",
-                              mediaPreviewUrl: gifUrl,
-                              mediaUrl: gifUrl,
-                            },
-                          ],
-                        }));
-                        setShowEmojiPicker(false);
+                          setChatMessage((prev) => ({
+                            ...prev,
+                            media: [
+                              ...prev.media,
+                              {
+                                mediaType: "gif",
+                                mediaName: item.title || "GIF",
+                                mediaPreviewUrl: gifUrl,
+                                mediaUrl: gifUrl,
+                              },
+                            ],
+                          }));
+                          setShowEmojiPicker(false);
                         }}
                       >
                         <Image
@@ -659,60 +707,13 @@ const handleFilePreview = (mediaType: string, mediaUrl: string) => {
       </KeyboardAvoidingView>
 
       {/* 💎 Profile Modal */}
-      <Modal
-        visible={showProfile}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowProfile(false)}
-      >
-        <Pressable
-          style={styles.softBackdrop}
-          onPress={() => setShowProfile(false)}
-        >
-          <BlurView intensity={20} tint="light" style={{ flex: 1 }} />
-        </Pressable>
-        <View style={styles.popupContainer}>
-          <BlurView intensity={40} tint="light" style={styles.popupCard}>
-            <LinearGradient
-              colors={["rgba(255,255,255,0.6)", "rgba(255,255,255,0.2)"]}
-              style={{ ...StyleSheet.absoluteFillObject }}
-            />
-            <LinearGradient
-              colors={["#ff9a9e", "#fad0c4"]}
-              style={styles.popupAvatarGlow}
-            >
-              {!avatarError ? (
-                <Image
-                  source={{ uri: parsedUser.avatar || DEFAULT_AVATAR }}
-                  style={styles.popupAvatar}
-                  onError={() => setAvatarError(true)}
-                />
-              ) : (
-                <View
-                  style={[
-                    styles.popupAvatar,
-                    {
-                      backgroundColor: "#FF4E50",
-                      justifyContent: "center",
-                      alignItems: "center",
-                    },
-                  ]}
-                >
-                  <Text
-                    style={{ fontSize: 60, fontWeight: "700", color: "#fff" }}
-                  >
-                    {parsedUser.username?.charAt(0).toUpperCase() || "U"}
-                  </Text>
-                </View>
-              )}
-            </LinearGradient>
-            <Text style={styles.popupUsername}>{parsedUser.username}</Text>
-            <Text style={styles.popupTagline}>
-              {parsedUser.tagline || "Hey there 👋"}
-            </Text>
-          </BlurView>
-        </View>
-      </Modal>
+      <ProfileViewPopup
+        show={showProfile}
+        onClose={() => setShowProfile(false)}
+        userName={parsedUser.username}
+        avatar={parsedUser.avatar || DEFAULT_AVATAR}
+        tagline={parsedUser.tagline || "Hey there 👋"}
+      />
 
       {/* 🖼️ Media Preview Modal */}
       <Modal
@@ -734,16 +735,17 @@ const handleFilePreview = (mediaType: string, mediaUrl: string) => {
           <BlurView intensity={90} tint="dark" style={{ flex: 1 }} />
         </Pressable>
         <View style={styles.previewContainer}>
-          {(previewType === "image" || previewType === "gif") && previewMedia && (
-            <Image
-              source={{ uri: previewMedia }}
-              style={styles.previewImage}
-              resizeMode="contain"
-            />
-          )}
+          {(previewType === "image" || previewType === "gif") &&
+            previewMedia && (
+              <Image
+                source={{ uri: previewMedia }}
+                style={styles.previewImage}
+                resizeMode="contain"
+              />
+            )}
           {previewType === "video" && previewMedia && (
             <View style={styles.previewVideoContainer}>
-            <Video
+              <Video
                 source={{ uri: previewMedia }}
                 style={{ width: "90%", height: "80%" }}
                 useNativeControls
@@ -780,6 +782,7 @@ const styles = StyleSheet.create({
   avatarGlow: { padding: 2, borderRadius: 35 },
   avatar: { width: 50, height: 50, borderRadius: 25 },
   username: { fontSize: 18, fontWeight: "600", marginLeft: 10 },
+
   msg: {
     padding: 10,
     marginVertical: 5,
@@ -789,6 +792,7 @@ const styles = StyleSheet.create({
   },
   left: { backgroundColor: "#eee", alignSelf: "flex-start" },
   right: { backgroundColor: "#25D366", alignSelf: "flex-end" },
+
   inputWrapper: {
     flexDirection: "row",
     alignItems: "flex-end",
@@ -799,6 +803,7 @@ const styles = StyleSheet.create({
     borderTopColor: "#ddd",
     gap: 8,
   },
+
   attachmentButton: {
     width: 36,
     height: 36,
@@ -807,54 +812,61 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+
   inputContainer: {
-  flex: 1,
-  backgroundColor: "#fff",
-  borderRadius: 20,
-  borderWidth: 1,
-  borderColor: "#ccc",
-  padding: 8,
-  justifyContent: "flex-end", // 🔥 keeps input at bottom
-},
-filesContainer: {
-  flexDirection: "row",
-  flexWrap: "wrap",   // 🔥 enables wrapping
-  gap: 8,
-  marginBottom: 6,
-},
-fileItem: {
-  width: 50,
-  height: 50,
-  borderRadius: 10,
-  overflow: "hidden",
-  position: "relative",
-},
-fileImage: {
-  width: "100%",
-  height: "100%",
-},
-removeButton: {
-  position: "absolute",
-  top: -6,
-  right: -6,
-  backgroundColor: "rgba(255, 0, 0, 0.8)",
-  borderRadius: 12,
-  width: 22,
-  height: 22,
-  justifyContent: "center",
-  alignItems: "center",
-  zIndex: 10,
-  elevation: 10,
-},
-chatInput: {
-  minHeight: 40,
-  maxHeight: 80,
-  paddingHorizontal: 12,
-  paddingVertical: 8,
-  borderRadius: 15,
-  backgroundColor: "#fff",
-  color: "#000",
-},
+    flex: 1,
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#ccc",
+    padding: 8,
+    justifyContent: "flex-end",
+  },
+
+  filesContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 6,
+  },
+
+  fileItem: {
+    width: 50,
+    height: 50,
+    borderRadius: 10,
+    overflow: "hidden",
+    position: "relative",
+  },
+
+  fileImage: {
+    width: "100%",
+    height: "100%",
+  },
+
+  removeButton: {
+    position: "absolute",
+    top: -6,
+    right: -6,
+    backgroundColor: "rgba(255, 0, 0, 0.8)",
+    borderRadius: 12,
+    width: 22,
+    height: 22,
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 10,
+    elevation: 10,
+  },
+
+  chatInput: {
+    minHeight: 40,
+    maxHeight: 80,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 15,
+    backgroundColor: "#fff",
+    color: "#000",
+  },
+
   sendButton: {
     backgroundColor: "#25D366",
     width: 40,
@@ -863,52 +875,47 @@ chatInput: {
     justifyContent: "center",
     alignItems: "center",
   },
-  disabledSendButton: { backgroundColor: "#95D4A3", opacity: 0.5 },
-  mediaImage: { width: 200, height: 200, borderRadius: 12, marginBottom: 6 },
+
+  disabledSendButton: {
+    backgroundColor: "#95D4A3",
+    opacity: 0.5,
+  },
+
+  mediaImage: {
+    width: 200,
+    height: 200,
+    borderRadius: 12,
+    marginBottom: 6,
+  },
+
   videoContainer: {
     position: "relative",
     width: 200,
     height: 200,
     marginBottom: 6,
   },
-  playIcon: { position: "absolute", top: "40%", left: "40%", fontSize: 40 },
+
+  playIcon: {
+    position: "absolute",
+    top: "40%",
+    left: "40%",
+    fontSize: 40,
+  },
+
   typingIndicator: {
     flexDirection: "row",
     gap: 4,
     paddingVertical: 10,
     paddingHorizontal: 12,
   },
-  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "#999" },
-  softBackdrop: { flex: 1, backgroundColor: "rgba(255,255,255,0.3)" },
-  popupContainer: {
-    position: "absolute",
-    top: 0,
-    bottom: 0,
-    left: 0,
-    right: 0,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingTop: Platform.OS === "ios" ? 0 : 0,
+
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#999",
   },
-  popupCard: {
-    width: 280,
-    padding: 24,
-    borderRadius: 40,
-    alignItems: "center",
-    overflow: "hidden",
-    backgroundColor: "rgba(42,33,33,0.8)",
-    borderWidth: 2,
-    borderColor: "rgba(35,30,30,0.5)",
-  },
-  popupAvatarGlow: { padding: 3, borderRadius: 60, marginBottom: 12 },
-  popupAvatar: { width: 160, height: 160, borderRadius: 55 },
-  popupUsername: { fontSize: 22, fontWeight: "700", color: "#000" },
-  popupTagline: {
-    marginTop: 6,
-    fontSize: 14,
-    color: "#555",
-    textAlign: "center",
-  },
+
   emojiPickerContainer: {
     backgroundColor: "#f5f5f5",
     borderTopLeftRadius: 20,
@@ -917,18 +924,22 @@ chatInput: {
     paddingVertical: 12,
     maxHeight: 240,
   },
+
   emojiSection: { marginBottom: 12 },
+
   emojiSectionTitle: {
     fontSize: 14,
     fontWeight: "600",
     marginBottom: 8,
     color: "#666",
   },
+
   emojiGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
   },
+
   emojiButton: {
     width: "22%",
     paddingVertical: 10,
@@ -939,15 +950,26 @@ chatInput: {
     borderWidth: 1,
     borderColor: "#eee",
   },
+
   emojiText: { fontSize: 24 },
-  previewBackdrop: { ...StyleSheet.absoluteFillObject },
+
+  previewBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+  },
+
   previewContainer: {
     ...StyleSheet.absoluteFillObject,
     justifyContent: "center",
     alignItems: "center",
     padding: 12,
   },
-  previewImage: { width: "90%", height: "80%", borderRadius: 20 },
+
+  previewImage: {
+    width: "90%",
+    height: "80%",
+    borderRadius: 20,
+  },
+
   previewVideoContainer: {
     width: "90%",
     height: "80%",
@@ -955,6 +977,7 @@ chatInput: {
     alignItems: "center",
     position: "relative",
   },
+
   previewPlayButton: {
     position: "absolute",
     width: 80,
@@ -964,6 +987,7 @@ chatInput: {
     justifyContent: "center",
     alignItems: "center",
   },
+
   closePreviewButton: {
     position: "absolute",
     top: 20,
@@ -975,27 +999,28 @@ chatInput: {
     justifyContent: "center",
     alignItems: "center",
   },
-filePreviewContainer: {
-  flexDirection: "row",
-  alignItems: "center",
-  backgroundColor: "#fff",
-  padding: 10,
-  borderRadius: 12,
-  width: 220,
-  gap: 10,
-},
 
-fileIcon: {
-  fontSize: 28,
-},
+  filePreviewContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    padding: 10,
+    borderRadius: 12,
+    width: 220,
+    gap: 10,
+  },
 
-fileName: {
-  fontWeight: "600",
-  color: "#000",
-},
+  fileIcon: {
+    fontSize: 28,
+  },
 
-fileHint: {
-  fontSize: 12,
-  color: "#666",
-},
+  fileName: {
+    fontWeight: "600",
+    color: "#000",
+  },
+
+  fileHint: {
+    fontSize: 12,
+    color: "#666",
+  },
 });

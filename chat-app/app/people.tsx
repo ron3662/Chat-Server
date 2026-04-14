@@ -23,6 +23,7 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import { useRouter } from "expo-router";
+import ProfileViewPopup from "../components/popup";
 
 const SERVER_URL = "https://chat-server-jznv.onrender.com";
 const { width, height } = Dimensions.get("window");
@@ -44,14 +45,10 @@ export default function People({ navigation }: any) {
 
   const fetchUsers = async () => {
     try {
-      const res = await axios.get(
-        `${SERVER_URL}/users?userId=${userId}`
-      );
-      const filteredUsers = res.data.filter(
-  (user: any) => user.id !== userId
-);
+      const res = await axios.get(`${SERVER_URL}/users?userId=${userId}`);
+      const filteredUsers = res.data.filter((user: any) => user.id !== userId);
 
-setUsers(filteredUsers);
+      setUsers(filteredUsers);
     } catch (err) {
       console.log(err);
     } finally {
@@ -89,9 +86,9 @@ setUsers(filteredUsers);
             }}
             onCardPress={() => {
               router.push({
-              pathname: "/chat",
-              params: { user: JSON.stringify(item) },
-            });
+                pathname: "/chat",
+                params: { user: JSON.stringify(item) },
+              });
             }}
           />
         )}
@@ -99,71 +96,19 @@ setUsers(filteredUsers);
         contentContainerStyle={{ paddingBottom: 40 }}
       />
 
-      {/* 💎 THEMED POPUP */}
-      <Modal
-        visible={showProfile}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowProfile(false)}
-      >
-        {/* 🌈 soft backdrop */}
-        <Pressable
-          style={styles.softBackdrop}
-          onPress={() => setShowProfile(false)}
-        >
-          <BlurView
-            intensity={20}
-            tint="light"
-            style={StyleSheet.absoluteFill}
-          />
-        </Pressable>
-
-        {/* 💎 popup */}
-        <View style={styles.popupContainer}>
-          <BlurView intensity={40} tint="light" style={styles.popupCard}>
-            <LinearGradient
-              colors={[
-                "rgba(255,255,255,0.6)",
-                "rgba(255,255,255,0.2)",
-              ]}
-              style={StyleSheet.absoluteFill}
-            />
-
-            <LinearGradient
-              colors={["#ff9a9e", "#fad0c4"]}
-              style={styles.popupAvatarGlow}
-            >
-              <Image
-                source={{
-                  uri:
-                    selectedUser?.avatar ||
-                    DEFAULT_AVATAR,
-                }}
-                style={styles.popupAvatar}
-              />
-            </LinearGradient>
-
-            <Text style={styles.popupUsername}>
-              {selectedUser?.username}
-            </Text>
-
-            <Text style={styles.popupTagline}>
-              {selectedUser?.tagline || "Hey there 👋"}
-            </Text>
-          </BlurView>
-        </View>
-      </Modal>
+      <ProfileViewPopup
+        show={showProfile}
+        onClose={() => setShowProfile(false)}
+        userName={selectedUser?.username}
+        avatar={selectedUser?.avatar}
+        tagline={selectedUser?.tagline}
+      />
     </View>
   );
 }
 
 /*  User Card */
-function UserCard({
-  item,
-  defaultAvatar,
-  onAvatarPress,
-  onCardPress,
-}: any) {
+function UserCard({ item, defaultAvatar, onAvatarPress, onCardPress }: any) {
   const scale = useSharedValue(1);
 
   const animatedStyle = useAnimatedStyle(() => ({
@@ -207,9 +152,7 @@ function UserCard({
           onPressOut={onPressOut}
         >
           <Text style={styles.username}>{item.username}</Text>
-          <Text style={styles.tagline}>
-            {item.tagline || "Hey there 👋"}
-          </Text>
+          <Text style={styles.tagline}>{item.tagline || "Hey there 👋"}</Text>
         </Pressable>
       </BlurView>
     </Animated.View>
@@ -277,57 +220,5 @@ const styles = StyleSheet.create({
   tagline: {
     fontSize: 14,
     color: "#666",
-  },
-
-  /* 💎 Popup */
-  softBackdrop: {
-    flex: 1,
-    backgroundColor: "rgba(255,255,255,0.3)",
-  },
-
-  popupContainer: {
-    position: "absolute",
-    top: 0,
-    bottom: 0,
-    left: 0,
-    right: 0,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-
-  popupCard: {
-    width: 280,
-    padding: 24,
-    borderRadius: 40,
-    alignItems: "center",
-    overflow: "hidden",
-    backgroundColor: "rgba(42, 33, 33, 0.8)",
-    borderWidth: 2,
-    borderColor: "rgba(35, 30, 30, 0.5)", // 👈 soft dark border
-  },
-
-  popupAvatarGlow: {
-    padding: 3,
-    borderRadius: 60,
-    marginBottom: 12,
-  },
-
-  popupAvatar: {
-    width: 160,
-    height: 160,
-    borderRadius: 55,
-  },
-
-  popupUsername: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: "#000",
-  },
-
-  popupTagline: {
-    marginTop: 6,
-    fontSize: 14,
-    color: "#555",
-    textAlign: "center",
   },
 });
