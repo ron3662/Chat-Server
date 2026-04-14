@@ -20,16 +20,14 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useUser } from "../context/UserContext";
 import axios from "axios";
 import { BlurView } from "expo-blur";
-import { LinearGradient } from "expo-linear-gradient";
 import * as DocumentPicker from "expo-document-picker";
 import { uploadToCloudinary } from "../utils/cloudinaryUpload";
-import { ScrollView } from "react-native";
 import * as VideoThumbnails from "expo-video-thumbnails";
 import ProfileViewPopup from "../components/popup";
 import MessageBubble from "../components/message-bubble";
 import MediaPreview from "../components/media-preview";
-import { useGIFs } from "@/services/gif-services";
 import UserProfileWidget from "@/components/user-profile-widget";
+import {EmojiKeyboard} from "@/components/emoji-keyboard";
 
 const SERVER_URL = "https://chat-server-jznv.onrender.com";
 const DEFAULT_AVATAR =
@@ -57,20 +55,13 @@ export default function ChatScreen() {
   const [showProfile, setShowProfile] = useState(false);
   const [otherUserTyping, setOtherUserTyping] = useState(false);
   const [isSending, setIsSending] = useState(false);
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [previewMedia, setPreviewMedia] = useState<string | null>(null);
   const [previewType, setPreviewType] = useState<
     "image" | "video" | "gif" | "file" | null
   >(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const typingIndicatorRef = useRef<boolean>(false);
-
-  const emojis = ["😀", "😂", "😍", "🔥", "👍", "🎉", "❤️", "😎", "🚀", "💯"];
-  const gifs = ["🎊", "🎈", "🎁", "⭐", "✨", "🌟", "💫", "🌈", "🦋", "🌺"];
-
-  const [gifQuery, setGifQuery] = useState("");
-  const { gifResults, loadingGifs, fetchTrendingGIFs, fetchGifQuery } =
-    useGIFs();
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
   const generateThumbnail = async (uri) => {
     try {
@@ -84,15 +75,6 @@ export default function ChatScreen() {
       return null;
     }
   };
-
-  //fetch trending gifs on mount
-  useEffect(() => {
-    if (showEmojiPicker) fetchTrendingGIFs();
-  }, [showEmojiPicker]);
-
-  useEffect(() => {
-    if (gifQuery != "" && showEmojiPicker) fetchGifQuery(gifQuery);
-  }, [gifQuery, showEmojiPicker]);
 
   // Load messages and setup WebSocket
   useEffect(() => {
@@ -440,119 +422,33 @@ export default function ChatScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* 😊 Emoji Picker */}
           {showEmojiPicker && (
-            <ScrollView
-              style={styles.emojiPickerContainer}
-              contentContainerStyle={{ paddingBottom: 20 }}
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-            >
-              <View style={styles.emojiSection}>
-                <Text style={styles.emojiSectionTitle}>Emojis</Text>
-                <View style={styles.emojiGrid}>
-                  {emojis.map((emoji) => (
-                    <TouchableOpacity
-                      key={emoji}
-                      style={styles.emojiButton}
-                      onPress={() => {
-                        setChatMessage({
-                          ...chatMessage,
-                          text: chatMessage.text + emoji,
-                        });
-                        setShowEmojiPicker(false);
-                      }}
-                    >
-                      <Text style={styles.emojiText}>{emoji}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-              <View style={styles.emojiSection}>
-                <Text style={styles.emojiSectionTitle}>GIFs & Stickers</Text>
-                <View style={styles.emojiGrid}>
-                  {gifs.map((gif) => (
-                    <TouchableOpacity
-                      key={gif}
-                      style={styles.emojiButton}
-                      onPress={() => {
-                        setChatMessage({
-                          ...chatMessage,
-                          text: chatMessage.text + gif,
-                        });
-                        setShowEmojiPicker(false);
-                      }}
-                    >
-                      <Text style={styles.emojiText}>{gif}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-              <View style={styles.emojiSection}>
-                <Text style={styles.emojiSectionTitle}>
-                  {gifQuery ? "Search Results" : "Trending GIFs 🔥"}
-                </Text>
-
-                {/* 🔍 Search */}
-                <TextInput
-                  placeholder="Search GIFs..."
-                  value={gifQuery}
-                  onChangeText={setGifQuery}
-                  style={{
-                    backgroundColor: "#fff",
-                    borderRadius: 10,
-                    padding: 8,
-                    marginBottom: 10,
-                  }}
-                />
-
-                {/* ⏳ Loader */}
-                {loadingGifs && <ActivityIndicator size="small" />}
-
-                {/* 🎞️ GIF Grid */}
-                <FlatList
-                  data={gifResults}
-                  keyExtractor={(item) => item.id}
-                  numColumns={2}
-                  scrollEnabled={false} // IMPORTANT (parent ScrollView handles scroll)
-                  renderItem={({ item }) => {
-                    const gifUrl = item?.media?.[0]?.gif?.url;
-
-                    if (!gifUrl) return null;
-
-                    return (
-                      <TouchableOpacity
-                        style={{ flex: 1, margin: 4 }}
-                        onPress={() => {
-                          setChatMessage((prev) => ({
-                            ...prev,
-                            media: [
-                              ...prev.media,
-                              {
-                                mediaType: "gif",
-                                mediaName: item.title || "GIF",
-                                mediaPreviewUrl: gifUrl,
-                                mediaUrl: gifUrl,
-                              },
-                            ],
-                          }));
-                          setShowEmojiPicker(false);
-                        }}
-                      >
-                        <Image
-                          source={{ uri: gifUrl }}
-                          style={{
-                            width: "100%",
-                            height: 120,
-                            borderRadius: 10,
-                          }}
-                        />
-                      </TouchableOpacity>
-                    );
-                  }}
-                />
-              </View>
-            </ScrollView>
+            <EmojiKeyboard
+              onEmojiSelect={(emoji) => {
+                setChatMessage((prev) => ({
+                  ...prev,
+                  text: prev.text + emoji,
+                }));
+                setShowEmojiPicker(false);
+              }}
+              onGifSelect={(gif) => {
+                setChatMessage((prev) => ({
+                  ...prev,
+                    text: prev.text + gif,
+                }));
+                setShowEmojiPicker(false);
+              }}
+              onTenorGifSelect={(gif) => {
+                setChatMessage((prev) => ({
+                  ...prev,
+                  media: [
+                    ...prev.media,
+                    { mediaType: "gif", mediaUrl: gif, mediaName: "GIF" },
+                  ],
+                }));
+                setShowEmojiPicker(false);  
+              }}
+            />  
           )}
         </SafeAreaView>
       </KeyboardAvoidingView>
@@ -687,46 +583,5 @@ const styles = StyleSheet.create({
     height: 6,
     borderRadius: 3,
     backgroundColor: "#999",
-  },
-
-  emojiPickerContainer: {
-    backgroundColor: "#f5f5f5",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    maxHeight: 240,
-  },
-
-  emojiSection: {
-    marginBottom: 12,
-  },
-
-  emojiSectionTitle: {
-    fontSize: 14,
-    fontWeight: "600",
-    marginBottom: 8,
-    color: "#666",
-  },
-
-  emojiGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-
-  emojiButton: {
-    width: "22%",
-    paddingVertical: 10,
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#eee",
-  },
-
-  emojiText: {
-    fontSize: 24,
   },
 });
