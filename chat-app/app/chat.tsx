@@ -20,14 +20,13 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useUser } from "../context/UserContext";
 import axios from "axios";
 import { BlurView } from "expo-blur";
-import * as DocumentPicker from "expo-document-picker";
 import { uploadToCloudinary } from "../utils/cloudinaryUpload";
-import * as VideoThumbnails from "expo-video-thumbnails";
 import ProfileViewPopup from "../components/popup";
 import MessageBubble from "../components/message-bubble";
 import MediaPreview from "../components/media-preview";
 import UserProfileWidget from "@/components/user-profile-widget";
-import {EmojiKeyboard} from "@/components/emoji-keyboard";
+import { EmojiKeyboard } from "@/components/emoji-keyboard";
+import { fileServices } from "@/services/file-services";
 
 const SERVER_URL = "https://chat-server-jznv.onrender.com";
 const DEFAULT_AVATAR =
@@ -62,19 +61,7 @@ export default function ChatScreen() {
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const typingIndicatorRef = useRef<boolean>(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-
-  const generateThumbnail = async (uri) => {
-    try {
-      const { uri: thumb } = await VideoThumbnails.getThumbnailAsync(uri, {
-        time: 1000,
-      });
-
-      return thumb; // ✅ return instead of state
-    } catch (e) {
-      console.warn("Thumbnail error:", e);
-      return null;
-    }
-  };
+  const { pickUniversalMedia } = fileServices();
 
   // Load messages and setup WebSocket
   useEffect(() => {
@@ -197,52 +184,6 @@ export default function ChatScreen() {
     }, 2000);
   };
 
-  const pickUniversalMedia = async () => {
-    try {
-      const result = await DocumentPicker.getDocumentAsync({
-        type: "*/*",
-        copyToCacheDirectory: true,
-        multiple: true,
-      });
-
-      if (result.canceled) return;
-
-      for (const file of result.assets) {
-        const uri = file.uri;
-        const name = file.name;
-        const mimeType = file.mimeType;
-        let mediaPreviewUrl = "";
-        // 🔥 Detect file type
-        let type = "file";
-
-        if (mimeType?.startsWith("image/")) {
-          type = "image";
-          if (mimeType === "image/gif") {
-            type = "gif";
-          }
-        } else if (mimeType?.startsWith("video/")) {
-          type = "video";
-          mediaPreviewUrl = await generateThumbnail(uri);
-        }
-
-        setChatMessage((prev) => ({
-          ...prev,
-          media: [
-            ...prev.media,
-            {
-              mediaType: type,
-              mediaName: name,
-              mediaPreviewUrl: mediaPreviewUrl || "",
-              mediaUrl: uri || "",
-            },
-          ],
-        }));
-      }
-    } catch (error) {
-      console.error("Media pick failed:", error);
-    }
-  };
-
   // Scroll to bottom on new messages or keyboard events
   useEffect(() => {
     if (messages.length > 0 || otherUserTyping) {
@@ -332,7 +273,15 @@ export default function ChatScreen() {
           >
             <TouchableOpacity
               style={styles.attachmentButton}
-              onPress={() => pickUniversalMedia()}
+              onPress={async () => {
+                const selectedMedia = await pickUniversalMedia();
+                if (selectedMedia) {
+                  setChatMessage((prev) => ({
+                    ...prev,
+                    media: [...prev.media, ...selectedMedia],
+                  }));
+                }
+              }}
             >
               <Text style={{ fontSize: 20 }}>📎</Text>
             </TouchableOpacity>
@@ -434,7 +383,7 @@ export default function ChatScreen() {
               onGifSelect={(gif) => {
                 setChatMessage((prev) => ({
                   ...prev,
-                    text: prev.text + gif,
+                  text: prev.text + gif,
                 }));
                 setShowEmojiPicker(false);
               }}
@@ -446,9 +395,9 @@ export default function ChatScreen() {
                     { mediaType: "gif", mediaUrl: gif, mediaName: "GIF" },
                   ],
                 }));
-                setShowEmojiPicker(false);  
+                setShowEmojiPicker(false);
               }}
-            />  
+            />
           )}
         </SafeAreaView>
       </KeyboardAvoidingView>
