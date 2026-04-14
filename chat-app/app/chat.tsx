@@ -28,6 +28,7 @@ import { Video } from "expo-av";
 import * as VideoThumbnails from "expo-video-thumbnails";
 import ProfileViewPopup from "../components/popup";
 import MessageBubble from "../components/message-bubble";
+import MediaPreview from "../components/media-preview";
 
 //Gif key
 const TENOR_API_KEY = "LIVDSRZULELA"; // temp key
@@ -319,14 +320,6 @@ export default function ChatScreen() {
       hideSub.remove();
     };
   }, []);
-
-  const getFileIcon = (type) => {
-    if (type === "pdf") return "📄";
-    if (type === "doc" || type === "docx") return "📝";
-    if (type === "xls" || type === "xlsx") return "📊";
-    if (type === "zip") return "🗜️";
-    return "📁";
-  };
 
   return (
     <SafeAreaView
@@ -629,7 +622,6 @@ export default function ChatScreen() {
         </SafeAreaView>
       </KeyboardAvoidingView>
 
-      {/* 💎 Profile Modal */}
       <ProfileViewPopup
         show={showProfile}
         onClose={() => setShowProfile(false)}
@@ -638,56 +630,14 @@ export default function ChatScreen() {
         tagline={parsedUser.tagline || "Hey there 👋"}
       />
 
-      {/* 🖼️ Media Preview Modal */}
-      <Modal
-        visible={!!previewMedia}
-        transparent
-        animationType="fade"
-        onRequestClose={() => {
+      <MediaPreview
+        previewMedia={previewMedia}
+        previewType={previewType}
+        onClose={() => {
           setPreviewMedia(null);
           setPreviewType(null);
         }}
-      >
-        <Pressable
-          style={styles.previewBackdrop}
-          onPress={() => {
-            setPreviewMedia(null);
-            setPreviewType(null);
-          }}
-        >
-          <BlurView intensity={90} tint="dark" style={{ flex: 1 }} />
-        </Pressable>
-        <View style={styles.previewContainer}>
-          {(previewType === "image" || previewType === "gif") &&
-            previewMedia && (
-              <Image
-                source={{ uri: previewMedia }}
-                style={styles.previewImage}
-                resizeMode="contain"
-              />
-            )}
-          {previewType === "video" && previewMedia && (
-            <View style={styles.previewVideoContainer}>
-              <Video
-                source={{ uri: previewMedia }}
-                style={{ width: "90%", height: "80%" }}
-                useNativeControls
-                resizeMode="contain"
-                shouldPlay
-              />
-            </View>
-          )}
-          <TouchableOpacity
-            style={styles.closePreviewButton}
-            onPress={() => {
-              setPreviewMedia(null);
-              setPreviewType(null);
-            }}
-          >
-            <Text style={{ fontSize: 28, color: "#fff" }}>✕</Text>
-          </TouchableOpacity>
-        </View>
-      </Modal>
+      />
     </SafeAreaView>
   );
 }
@@ -866,52 +816,5 @@ const styles = StyleSheet.create({
 
   emojiText: {
     fontSize: 24,
-  },
-
-  previewBackdrop: {
-    ...StyleSheet.absoluteFillObject,
-  },
-
-  previewContainer: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 12,
-  },
-
-  previewImage: {
-    width: "90%",
-    height: "80%",
-    borderRadius: 20,
-  },
-
-  previewVideoContainer: {
-    width: "90%",
-    height: "80%",
-    justifyContent: "center",
-    alignItems: "center",
-    position: "relative",
-  },
-
-  previewPlayButton: {
-    position: "absolute",
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: "rgba(0,0,0,0.6)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-
-  closePreviewButton: {
-    position: "absolute",
-    top: 20,
-    right: 20,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "rgba(0,0,0,0.7)",
-    justifyContent: "center",
-    alignItems: "center",
   },
 });
