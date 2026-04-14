@@ -24,11 +24,11 @@ import { LinearGradient } from "expo-linear-gradient";
 import * as DocumentPicker from "expo-document-picker";
 import { uploadToCloudinary } from "../utils/cloudinaryUpload";
 import { ScrollView } from "react-native";
-import { Video } from "expo-av";
 import * as VideoThumbnails from "expo-video-thumbnails";
 import ProfileViewPopup from "../components/popup";
 import MessageBubble from "../components/message-bubble";
 import MediaPreview from "../components/media-preview";
+import { useGIFs } from "@/services/gif-services";
 
 //Gif key
 const TENOR_API_KEY = "LIVDSRZULELA"; // temp key
@@ -72,9 +72,9 @@ export default function ChatScreen() {
   const emojis = ["😀", "😂", "😍", "🔥", "👍", "🎉", "❤️", "😎", "🚀", "💯"];
   const gifs = ["🎊", "🎈", "🎁", "⭐", "✨", "🌟", "💫", "🌈", "🦋", "🌺"];
 
-  const [gifResults, setGifResults] = useState<any[]>([]);
   const [gifQuery, setGifQuery] = useState("");
-  const [loadingGifs, setLoadingGifs] = useState(false);
+  const { gifResults, loadingGifs, fetchTrendingGIFs, fetchGifQuery } =
+    useGIFs();
 
   const generateThumbnail = async (uri) => {
     try {
@@ -97,38 +97,6 @@ export default function ChatScreen() {
   useEffect(() => {
     if (gifQuery != "" && showEmojiPicker) fetchGifQuery(gifQuery);
   }, [gifQuery, showEmojiPicker]);
-
-  const fetchTrendingGIFs = async () => {
-    try {
-      setLoadingGifs(true);
-      const res = await axios.get(
-        `https://g.tenor.com/v1/trending?key=${TENOR_API_KEY}&limit=${TENOR_LIMIT}`,
-      );
-
-      console.log("TRENDING GIFS:", res.data.results);
-      setGifResults(res.data.results);
-    } catch (error) {
-      console.log("Tenor error:", error);
-    } finally {
-      setLoadingGifs(false);
-    }
-  };
-
-  const fetchGifQuery = async (query: string) => {
-    try {
-      setLoadingGifs(true);
-      const res = await axios.get(
-        `https://g.tenor.com/v1/search?key=${TENOR_API_KEY}&limit=${TENOR_LIMIT}&q=${query}`,
-      );
-
-      console.log("TRENDING GIFS:", res.data.results);
-      setGifResults(res.data.results);
-    } catch (error) {
-      console.log("Tenor error:", error);
-    } finally {
-      setLoadingGifs(false);
-    }
-  };
 
   // Load messages and setup WebSocket
   useEffect(() => {
