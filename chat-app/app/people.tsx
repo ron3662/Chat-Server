@@ -24,6 +24,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { useRouter } from "expo-router";
 import ProfileViewPopup from "../components/popup";
+import UserProfileWidget from "@/components/user-profile-widget";
 
 const SERVER_URL = "https://chat-server-jznv.onrender.com";
 const { width, height } = Dimensions.get("window");
@@ -128,22 +129,9 @@ function UserCard({ item, defaultAvatar, onAvatarPress, onCardPress }: any) {
     <Animated.View style={[styles.cardWrapper, animatedStyle]}>
       <BlurView intensity={40} tint="light" style={styles.card}>
         <View style={styles.glassOverlay} />
-
+        
         {/* Avatar click */}
-        <Pressable onPress={onAvatarPress}>
-          <View style={styles.avatarContainer}>
-            <LinearGradient
-              colors={["#ff9a9e", "#fad0c4"]}
-              style={styles.avatarGlow}
-            >
-              <Image
-                source={{ uri: item.avatar || defaultAvatar }}
-                style={styles.avatar}
-              />
-            </LinearGradient>
-          </View>
-        </Pressable>
-
+        <UserProfileWidget avatar={item.avatar} userName={item.username} tagline={item.tagline} onpress={onAvatarPress} />
         {/* Card click */}
         <Pressable
           style={{ flex: 1 }}
@@ -151,8 +139,7 @@ function UserCard({ item, defaultAvatar, onAvatarPress, onCardPress }: any) {
           onPressIn={onPressIn}
           onPressOut={onPressOut}
         >
-          <Text style={styles.username}>{item.username}</Text>
-          <Text style={styles.tagline}>{item.tagline || "Hey there 👋"}</Text>
+        <Text style={styles.username}></Text>
         </Pressable>
       </BlurView>
     </Animated.View>

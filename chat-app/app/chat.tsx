@@ -29,10 +29,7 @@ import ProfileViewPopup from "../components/popup";
 import MessageBubble from "../components/message-bubble";
 import MediaPreview from "../components/media-preview";
 import { useGIFs } from "@/services/gif-services";
-
-//Gif key
-const TENOR_API_KEY = "LIVDSRZULELA"; // temp key
-const TENOR_LIMIT = 5;
+import UserProfileWidget from "@/components/user-profile-widget";
 
 const SERVER_URL = "https://chat-server-jznv.onrender.com";
 const DEFAULT_AVATAR =
@@ -58,7 +55,6 @@ export default function ChatScreen() {
 
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
-  const [avatarError, setAvatarError] = useState(false);
   const [otherUserTyping, setOtherUserTyping] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -299,41 +295,12 @@ export default function ChatScreen() {
         <TouchableOpacity onPress={() => router.back()}>
           <Text style={{ fontSize: 28, color: "#FF4E50" }}>←</Text>
         </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.userInfo}
-          onPress={() => setShowProfile(true)}
-        >
-          <LinearGradient
-            colors={["#ff9a9e", "#fad0c4"]}
-            style={styles.avatarGlow}
-          >
-            {!avatarError ? (
-              <Image
-                source={{ uri: parsedUser.avatar || DEFAULT_AVATAR }}
-                style={styles.avatar}
-                onError={() => setAvatarError(true)}
-              />
-            ) : (
-              <View
-                style={[
-                  styles.avatar,
-                  {
-                    backgroundColor: "#FF4E50",
-                    justifyContent: "center",
-                    alignItems: "center",
-                  },
-                ]}
-              >
-                <Text
-                  style={{ fontSize: 24, fontWeight: "700", color: "#fff" }}
-                >
-                  {parsedUser.username?.charAt(0).toUpperCase() || "U"}
-                </Text>
-              </View>
-            )}
-          </LinearGradient>
-          <Text style={styles.username}>{parsedUser.username}</Text>
-        </TouchableOpacity>
+        <UserProfileWidget
+          onpress={() => setShowProfile(true)}
+          avatar={parsedUser.avatar}
+          userName={parsedUser.username}
+          tagline={parsedUser.tagline}
+        />
       </BlurView>
 
       {/* 💬 Chat */}
@@ -618,29 +585,6 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: "rgba(0,0,0,0.08)",
-  },
-
-  userInfo: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginLeft: 12,
-  },
-
-  avatarGlow: {
-    padding: 2,
-    borderRadius: 35,
-  },
-
-  avatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-  },
-
-  username: {
-    fontSize: 18,
-    fontWeight: "600",
-    marginLeft: 10,
   },
 
   inputWrapper: {
