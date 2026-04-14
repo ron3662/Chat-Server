@@ -27,6 +27,7 @@ import { ScrollView } from "react-native";
 import { Video } from "expo-av";
 import * as VideoThumbnails from "expo-video-thumbnails";
 import ProfileViewPopup from "../components/popup";
+import MessageBubble from "../components/message-bubble";
 
 //Gif key
 const TENOR_API_KEY = "LIVDSRZULELA"; // temp key
@@ -388,90 +389,12 @@ export default function ChatScreen() {
           scrollEnabled={true}
           nestedScrollEnabled={true}
           renderItem={({ item }) => (
-            <View
-              style={[
-                styles.msg,
-                item.from === userId ? styles.right : styles.left,
-              ]}
-            >
-              {item.media &&
-                item.media.length > 0 &&
-                item.media.map((mediaItem, index) => {
-                  if (
-                    mediaItem.mediaType === "image" ||
-                    mediaItem.mediaType === "gif"
-                  ) {
-                    return (
-                      <TouchableOpacity
-                        key={index}
-                        onPress={() => {
-                          handleFilePreview(
-                            mediaItem.mediaType,
-                            mediaItem.mediaUrl,
-                          );
-                        }}
-                      >
-                        <Image
-                          source={{ uri: mediaItem.mediaUrl }}
-                          style={styles.mediaImage}
-                        />
-                      </TouchableOpacity>
-                    );
-                  } else if (mediaItem.mediaType === "video") {
-                    return (
-                      <TouchableOpacity
-                        key={index}
-                        onPress={() => {
-                          handleFilePreview(
-                            mediaItem.mediaType,
-                            mediaItem.mediaUrl,
-                          );
-                        }}
-                      >
-                        <View style={styles.videoContainer}>
-                          <Image
-                            source={{
-                              uri: mediaItem.mediaPreviewUrl || "",
-                            }}
-                            style={styles.mediaImage}
-                          />
-                          <Text style={styles.playIcon}>▶️</Text>
-                        </View>
-                      </TouchableOpacity>
-                    );
-                  } else if (mediaItem.mediaType === "file") {
-                    return (
-                      <TouchableOpacity
-                        style={styles.filePreviewContainer}
-                        onPress={() =>
-                          handleFilePreview(
-                            mediaItem.mediaType,
-                            mediaItem.mediaUrl,
-                          )
-                        }
-                      >
-                        <Text style={styles.fileIcon}>
-                          {getFileIcon(mediaItem.mediaType)}
-                        </Text>
-
-                        <View style={{ flex: 1 }}>
-                          <Text numberOfLines={1} style={styles.fileName}>
-                            {mediaItem.mediaName || "File"}
-                          </Text>
-
-                          <Text style={styles.fileHint}>Tap to open</Text>
-                        </View>
-                      </TouchableOpacity>
-                    );
-                  }
-                  return null;
-                })}
-              {item.text && (
-                <Text style={{ color: item.from === userId ? "#fff" : "#000" }}>
-                  {item.text}
-                </Text>
-              )}
-            </View>
+            <MessageBubble
+              isUserMessage={item.from === userId}
+              text={item.text}
+              media={item.media}
+              handleFilePreview={handleFilePreview}
+            />
           )}
           ListFooterComponent={
             otherUserTyping ? (
@@ -778,20 +701,29 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "rgba(0,0,0,0.08)",
   },
-  userInfo: { flexDirection: "row", alignItems: "center", marginLeft: 12 },
-  avatarGlow: { padding: 2, borderRadius: 35 },
-  avatar: { width: 50, height: 50, borderRadius: 25 },
-  username: { fontSize: 18, fontWeight: "600", marginLeft: 10 },
 
-  msg: {
-    padding: 10,
-    marginVertical: 5,
-    borderRadius: 10,
-    marginHorizontal: 12,
-    maxWidth: "75%",
+  userInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginLeft: 12,
   },
-  left: { backgroundColor: "#eee", alignSelf: "flex-start" },
-  right: { backgroundColor: "#25D366", alignSelf: "flex-end" },
+
+  avatarGlow: {
+    padding: 2,
+    borderRadius: 35,
+  },
+
+  avatar: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+  },
+
+  username: {
+    fontSize: 18,
+    fontWeight: "600",
+    marginLeft: 10,
+  },
 
   inputWrapper: {
     flexDirection: "row",
@@ -881,27 +813,6 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
 
-  mediaImage: {
-    width: 200,
-    height: 200,
-    borderRadius: 12,
-    marginBottom: 6,
-  },
-
-  videoContainer: {
-    position: "relative",
-    width: 200,
-    height: 200,
-    marginBottom: 6,
-  },
-
-  playIcon: {
-    position: "absolute",
-    top: "40%",
-    left: "40%",
-    fontSize: 40,
-  },
-
   typingIndicator: {
     flexDirection: "row",
     gap: 4,
@@ -925,7 +836,9 @@ const styles = StyleSheet.create({
     maxHeight: 240,
   },
 
-  emojiSection: { marginBottom: 12 },
+  emojiSection: {
+    marginBottom: 12,
+  },
 
   emojiSectionTitle: {
     fontSize: 14,
@@ -951,7 +864,9 @@ const styles = StyleSheet.create({
     borderColor: "#eee",
   },
 
-  emojiText: { fontSize: 24 },
+  emojiText: {
+    fontSize: 24,
+  },
 
   previewBackdrop: {
     ...StyleSheet.absoluteFillObject,
@@ -998,29 +913,5 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.7)",
     justifyContent: "center",
     alignItems: "center",
-  },
-
-  filePreviewContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#fff",
-    padding: 10,
-    borderRadius: 12,
-    width: 220,
-    gap: 10,
-  },
-
-  fileIcon: {
-    fontSize: 28,
-  },
-
-  fileName: {
-    fontWeight: "600",
-    color: "#000",
-  },
-
-  fileHint: {
-    fontSize: 12,
-    color: "#666",
   },
 });
