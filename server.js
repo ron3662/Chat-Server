@@ -49,9 +49,9 @@ const Message = mongoose.model("Message", {
 });
 
 // Cloudinary upload helper
-const uploadToCloudinary = (buffer) =>
+const uploadToCloudinary = (buffer, resourceType = "auto") =>
   new Promise((resolve, reject) => {
-    const stream = cloudinary.uploader.upload_stream({ resource_type: "auto" }, (err, result) => {
+    const stream = cloudinary.uploader.upload_stream({ resource_type: resourceType }, (err, result) => {
       if (err) reject(err);
       else resolve(result);
     });
@@ -152,7 +152,7 @@ app.get("/messages/:user1/:user2", async (req, res) => {
 app.post("/upload", upload.single("file"), async (req, res) => {
   if (!req.file) return res.status(400).send("No file uploaded");
   try {
-    const result = await uploadToCloudinary(req.file.buffer);
+    const result = await uploadToCloudinary(req.file.buffer, req.body.resource_type);
     res.send({ url: result.secure_url });
   } catch (err) {
     res.status(500).send(err.message);

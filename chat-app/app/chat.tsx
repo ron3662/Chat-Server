@@ -13,6 +13,7 @@ import {
   KeyboardAvoidingView,
   Keyboard,
   ActivityIndicator,
+  Linking,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -53,7 +54,7 @@ export default function ChatScreen() {
   const [isSending, setIsSending] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [previewMedia, setPreviewMedia] = useState<string | null>(null);
-  const [previewType, setPreviewType] = useState<"image" | "video" | "gif" | "pdf" | null>(
+  const [previewType, setPreviewType] = useState<"image" | "video" | "gif" | "file" | null>(
     null,
   );
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -152,10 +153,28 @@ const sendMessage = async () => {
 
     setIsSending(true);
 
+    //upload to cloudinary and get URLs for media items
+    const mediaWithUrls = await Promise.all(
+      chatMessage.media.map(async (mediaItem) => {
+        if (mediaItem.mediaUrl.startsWith("http")) {
+          return mediaItem; // already has URL (e.g., GIFs)
+        } else {
+          const uploadedUrl = await uploadToCloudinary(mediaItem.mediaUrl);
+          const mediaPreviewUrl = (mediaItem.mediaType === "video" && mediaItem.mediaPreviewUrl) ? await uploadToCloudinary(mediaItem.mediaPreviewUrl) : "";
+          return {
+            ...mediaItem,
+            mediaUrl: uploadedUrl,
+            mediaPreviewUrl: mediaPreviewUrl
+          };
+        }
+      })
+    );
+    
     const finalMessage = {
       ...chatMessage,
       from: userId,
       to: selectedUserId,
+      media: mediaWithUrls,
       time: new Date(),
     };
 
@@ -183,6 +202,24 @@ const sendMessage = async () => {
   }
 };
 
+const handleFilePreview = (mediaType: string, mediaUrl: string) => {
+  if (mediaType === "image" || mediaType === "gif") {
+    setPreviewType(mediaType);
+    setPreviewMedia(mediaUrl);
+  } else if (mediaType === "video") {
+    setPreviewType("video");
+    setPreviewMedia(mediaUrl);
+  } else {
+    // For other files, we can either show a generic preview or attempt to open with Linking
+    Linking.canOpenURL(mediaUrl).then(supported => { 
+      if (supported) {
+        Linking.openURL(mediaUrl);
+      } else {
+        setPreviewType("file");  
+      }
+    });
+  }
+};
   const handleTyping = (text: string) => {
     setChatMessage((prev) => ({ ...prev, text }));
 
@@ -234,7 +271,6 @@ const sendMessage = async () => {
           type = "video";
           mediaPreviewUrl = await generateThumbnail(uri);
         }
-        else if (mimeType === "application/pdf") type = "pdf";
 
         setChatMessage((prev) => ({
           ...prev,
@@ -270,6 +306,14 @@ const sendMessage = async () => {
       hideSub.remove();
     };
   }, []);
+
+  const getFileIcon = (type) => {
+  if (type === "pdf") return "📄";
+  if (type === "doc" || type === "docx") return "📝";
+  if (type === "xls" || type === "xlsx") return "📊";
+  if (type === "zip") return "🗜️";
+  return "📁";
+};
 
   return (
     <SafeAreaView
@@ -339,29 +383,12 @@ const sendMessage = async () => {
               ]}
             >
               {item.media && item.media.length > 0 && item.media.map((mediaItem, index) => {
-                if (mediaItem.mediaType === "image") {
+                if (mediaItem.mediaType === "image" || mediaItem.mediaType === "gif" ) {
                   return (
                     <TouchableOpacity
                       key={index}
                       onPress={() => {
-                        setPreviewMedia(mediaItem.mediaUrl);
-                        setPreviewType("image");
-                      }}
-                    >
-                      <Image
-                        source={{ uri: mediaItem.mediaUrl }}
-                        style={styles.mediaImage}
-                      />
-                    </TouchableOpacity>
-                  );
-                }
-                else if (mediaItem.mediaType === "gif") {
-                  return (
-                    <TouchableOpacity
-                      key={index}
-                      onPress={() => {
-                        setPreviewMedia(mediaItem.mediaUrl);
-                        setPreviewType("gif");
+                        handleFilePreview(mediaItem.mediaType, mediaItem.mediaUrl);
                       }}
                     >
                       <Image
@@ -376,8 +403,7 @@ const sendMessage = async () => {
                     <TouchableOpacity
                       key={index}
                       onPress={() => {
-                        setPreviewMedia(mediaItem.mediaUrl);
-                        setPreviewType("video");
+                        handleFilePreview(mediaItem.mediaType, mediaItem.mediaUrl);
                       }}
                     >
                       <View style={styles.videoContainer}>
@@ -392,18 +418,26 @@ const sendMessage = async () => {
                     </TouchableOpacity>
                   );
                 }
-                else if (mediaItem.mediaType === "pdf") {
+                else if (mediaItem.mediaType === "file") {
                   return (
                     <TouchableOpacity
-                      key={index}
-                      style={styles.pdfContainer}
-                      onPress={() => {
-                        setPreviewMedia(mediaItem.mediaUrl);
-                        setPreviewType("pdf");
-                      }}
-                    >
-                      <Text style={styles.pdfIcon}>📄</Text>
-                    </TouchableOpacity>
+                    style={styles.filePreviewContainer}
+                    onPress={() => handleFilePreview(mediaItem.mediaType, mediaItem.mediaUrl)}
+                  >
+                    <Text style={styles.fileIcon}>
+                      {getFileIcon(mediaItem.mediaType)}
+                    </Text>
+
+                    <View style={{ flex: 1 }}>
+                      <Text numberOfLines={1} style={styles.fileName}>
+                        {mediaItem.mediaName || "File"}
+                      </Text>
+
+                      <Text style={styles.fileHint}>
+                        Tap to open
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
                   );
                 }
                 return null;
@@ -468,18 +502,17 @@ const sendMessage = async () => {
                         <Text>📄</Text>
                       </View>
                     )}
-                      {/* ❌ Remove button */}
-                      <TouchableOpacity
+
+                    <TouchableOpacity
                         style={styles.removeButton}
                         onPress={() => {
                           setChatMessage(prev => ({
                             ...prev,
                             media: prev.media.filter((_, i) => i !== index),
                           }));
-                        }}
-                      >
-                        <Text style={{ fontSize: 14, color: "#fff" }}>✕</Text>
-                      </TouchableOpacity>
+                        }}>
+                        <Text style={{ fontSize: 14, color: "#fff" }}>❌</Text>
+                    </TouchableOpacity>
                     </View>
                   ))}
                 </View>
@@ -701,22 +734,13 @@ const sendMessage = async () => {
           <BlurView intensity={90} tint="dark" style={{ flex: 1 }} />
         </Pressable>
         <View style={styles.previewContainer}>
-          {previewType === "image" && previewMedia && (
+          {(previewType === "image" || previewType === "gif") && previewMedia && (
             <Image
               source={{ uri: previewMedia }}
               style={styles.previewImage}
               resizeMode="contain"
             />
           )}
-
-          {previewType === "gif" && previewMedia && (
-            <Image
-              source={{ uri: previewMedia }}
-              style={styles.previewImage}
-              resizeMode="contain"
-            />
-          )}
-
           {previewType === "video" && previewMedia && (
             <View style={styles.previewVideoContainer}>
             <Video
@@ -728,7 +752,6 @@ const sendMessage = async () => {
               />
             </View>
           )}
-
           <TouchableOpacity
             style={styles.closePreviewButton}
             onPress={() => {
@@ -814,7 +837,7 @@ removeButton: {
   position: "absolute",
   top: -6,
   right: -6,
-  backgroundColor: "rgba(0,0,0,0.8)",
+  backgroundColor: "rgba(255, 0, 0, 0.8)",
   borderRadius: 12,
   width: 22,
   height: 22,
@@ -952,26 +975,26 @@ chatInput: {
     justifyContent: "center",
     alignItems: "center",
   },
-  pdfContainer: {
+filePreviewContainer: {
   flexDirection: "row",
   alignItems: "center",
   backgroundColor: "#fff",
   padding: 10,
-  borderRadius: 10,
-  width: 200,
+  borderRadius: 12,
+  width: 220,
   gap: 10,
 },
 
-pdfIcon: {
-  fontSize: 30,
+fileIcon: {
+  fontSize: 28,
 },
 
-pdfTitle: {
+fileName: {
   fontWeight: "600",
   color: "#000",
 },
 
-pdfSubtitle: {
+fileHint: {
   fontSize: 12,
   color: "#666",
 },
