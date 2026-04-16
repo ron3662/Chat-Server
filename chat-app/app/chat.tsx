@@ -14,9 +14,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useUser } from "../context/UserContext";
-import axios from "axios";
 import { BlurView } from "expo-blur";
-import { uploadToCloudinary } from "../utils/cloudinaryUpload";
 import ProfileViewPopup from "../components/popup";
 import MessageBubble from "../components/message-bubble";
 import MediaPreview from "../components/media-preview";
@@ -24,8 +22,8 @@ import UserProfileWidget from "@/components/user-profile-widget";
 import { EmojiKeyboard } from "@/components/emoji-keyboard";
 import { fileServices } from "@/services/file-services";
 import { MediaInputTextField } from "@/components/media-input-textfield";
+import { useMessagingService } from "@/services/messaging-service";
 
-const SERVER_URL = "https://chat-server-jznv.onrender.com";
 const DEFAULT_AVATAR =
   "https://ui-avatars.com/api/?name=User&background=E5E5EA&color=555";
 
@@ -35,113 +33,32 @@ export default function ChatScreen() {
   const { userId } = useUser();
   const selectedUserId = parsedUser.id;
 
-  const [messages, setMessages] = useState<any[]>([]);
-  const [chatMessage, setChatMessage] = useState({
-    from: "",
-    to: "",
-    text: "",
-    media: [],
-    time: new Date(),
-  });
-  const wsRef = useRef<WebSocket | null>(null);
   const flatListRef = useRef<FlatList>(null);
   const router = useRouter();
 
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [otherUserTyping, setOtherUserTyping] = useState(false);
-  const [isSending, setIsSending] = useState(false);
   const [previewMedia, setPreviewMedia] = useState<string | null>(null);
   const [previewType, setPreviewType] = useState<
     "image" | "video" | "gif" | "file" | null
   >(null);
-  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const typingIndicatorRef = useRef<boolean>(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const { pickUniversalMedia } = fileServices();
+  const {
+    init,
+    sendMessage,
+    handleTyping,
+    chatMessage,
+    setChatMessage,
+    messages,
+    isSending,
+  } = useMessagingService();
 
-  // Load messages and setup WebSocket
   useEffect(() => {
-    axios
-      .get(`${SERVER_URL}/messages/${userId}/${selectedUserId}`)
-      .then((res) => {
-        setMessages(res.data);
-      })
-      .catch((err) => console.warn("Error loading messages:", err));
-
-    const ws = new WebSocket("wss://chat-server-jznv.onrender.com");
-    ws.onopen = () => ws.send(JSON.stringify({ type: "auth", userId }));
-    ws.onmessage = (e) => {
-      const data = JSON.parse(e.data);
-      if (data.from === selectedUserId) {
-        if (data.type === "typing") {
-          setOtherUserTyping(true);
-          setTimeout(() => setOtherUserTyping(false), 2000);
-        } else {
-          setMessages((prev) => [...prev, data]);
-        }
-      }
-    };
-    wsRef.current = ws;
-    return () => ws.close();
+    if (!userId || !selectedUserId) return;
+    init(userId, selectedUserId, () => {setOtherUserTyping(true);}, () => {setOtherUserTyping(false)});
   }, [userId, selectedUserId]);
-
-  const sendMessage = async () => {
-    try {
-      if (!chatMessage.text.trim() && chatMessage.media.length === 0) return;
-
-      setIsSending(true);
-
-      //upload to cloudinary and get URLs for media items
-      const mediaWithUrls = await Promise.all(
-        chatMessage.media.map(async (mediaItem) => {
-          if (mediaItem.mediaUrl.startsWith("http")) {
-            return mediaItem; // already has URL (e.g., GIFs)
-          } else {
-            const uploadedUrl = await uploadToCloudinary(mediaItem.mediaUrl);
-            const mediaPreviewUrl =
-              mediaItem.mediaType === "video" && mediaItem.mediaPreviewUrl
-                ? await uploadToCloudinary(mediaItem.mediaPreviewUrl)
-                : "";
-            return {
-              ...mediaItem,
-              mediaUrl: uploadedUrl,
-              mediaPreviewUrl: mediaPreviewUrl,
-            };
-          }
-        }),
-      );
-
-      const finalMessage = {
-        ...chatMessage,
-        from: userId,
-        to: selectedUserId,
-        media: mediaWithUrls,
-        time: new Date(),
-      };
-
-      wsRef.current?.send(
-        JSON.stringify({
-          type: "message",
-          ...finalMessage,
-        }),
-      );
-
-      setMessages((prev) => [...prev, finalMessage]);
-
-      setChatMessage({
-        from: userId,
-        to: selectedUserId,
-        text: "",
-        media: [],
-        time: new Date(),
-      });
-    } catch (error) {
-      console.error("Failed to send message:", error);
-    } finally {
-      setIsSending(false);
-    }
-  };
 
   const handleFilePreview = (mediaType: string, mediaUrl: string) => {
     if (mediaType === "image" || mediaType === "gif") {
@@ -161,29 +78,10 @@ export default function ChatScreen() {
       });
     }
   };
-  const handleTyping = (text: string) => {
-    setChatMessage((prev) => ({ ...prev, text }));
-
-    if (!typingIndicatorRef.current && wsRef.current) {
-      typingIndicatorRef.current = true;
-      wsRef.current?.send(
-        JSON.stringify({
-          type: "typing",
-          from: userId,
-          to: selectedUserId,
-        }),
-      );
-    }
-
-    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-    typingTimeoutRef.current = setTimeout(() => {
-      typingIndicatorRef.current = false;
-    }, 2000);
-  };
 
   // Scroll to bottom on new messages or keyboard events
   useEffect(() => {
-    if (messages.length > 0 || otherUserTyping) {
+    if (messages?.length > 0 || otherUserTyping) {
       setTimeout(
         () => flatListRef.current?.scrollToEnd({ animated: true }),
         50,
@@ -231,7 +129,7 @@ export default function ChatScreen() {
       >
         <FlatList
           ref={flatListRef}
-          data={messages}
+          data={Array.isArray(messages) ? messages : []}
           keyExtractor={(_, i) => i.toString()}
           contentContainerStyle={{ paddingTop: 20, paddingBottom: 20 }}
           scrollEnabled={true}
@@ -304,14 +202,14 @@ export default function ChatScreen() {
               style={[
                 styles.sendButton,
                 (isSending ||
-                  (!chatMessage.text.trim() &&
-                    chatMessage.media.length === 0)) &&
+                  (!chatMessage?.text?.trim() &&
+                    chatMessage?.media?.length === 0)) &&
                   styles.disabledSendButton,
               ]}
               onPress={() => sendMessage()}
               disabled={
                 isSending ||
-                (!chatMessage.text.trim() && chatMessage.media.length === 0)
+                (!chatMessage?.text.trim() && chatMessage?.media?.length === 0)
               }
             >
               {isSending ? (
