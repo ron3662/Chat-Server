@@ -23,6 +23,8 @@ import { EmojiKeyboard } from "@/components/emoji-keyboard";
 import { fileServices } from "@/services/file-services";
 import { MediaInputTextField } from "@/components/media-input-textfield";
 import { useMessagingService } from "@/services/messaging-service";
+import { ReactionKeyboard } from "../components/reaction-keyboard";
+import { useReactionKeyboard } from "@/hooks/use-reaction-keyboard";
 
 const DEFAULT_AVATAR =
   "https://ui-avatars.com/api/?name=User&background=E5E5EA&color=555";
@@ -55,9 +57,20 @@ export default function ChatScreen() {
     isSending,
   } = useMessagingService();
 
+  const { visible, activeMessageId, position, open, close } =
+    useReactionKeyboard();
   useEffect(() => {
     if (!userId || !selectedUserId) return;
-    init(userId, selectedUserId, () => {setOtherUserTyping(true);}, () => {setOtherUserTyping(false)});
+    init(
+      userId,
+      selectedUserId,
+      () => {
+        setOtherUserTyping(true);
+      },
+      () => {
+        setOtherUserTyping(false);
+      },
+    );
   }, [userId, selectedUserId]);
 
   const handleFilePreview = (mediaType: string, mediaUrl: string) => {
@@ -103,6 +116,9 @@ export default function ChatScreen() {
     };
   }, []);
 
+  const onMessageLongPress = (id: number, pos: { x: number; y: number }) => {
+    open(id?.toString(), pos);
+  };
   return (
     <SafeAreaView
       edges={["top", "left", "right"]}
@@ -140,6 +156,7 @@ export default function ChatScreen() {
               text={item.text}
               media={item.media}
               handleFilePreview={handleFilePreview}
+              onLongPress={(pos) => onMessageLongPress(item.id, pos)}
             />
           )}
           ListFooterComponent={
@@ -153,6 +170,14 @@ export default function ChatScreen() {
               </View>
             ) : null
           }
+        />
+        <ReactionKeyboard
+          visible={visible}
+          position={position}
+          onClose={close}
+          onSelect={(reaction) => {
+            console.log("Selected:", reaction, activeMessageId);
+          }}
         />
 
         {/* 📝 Input */}

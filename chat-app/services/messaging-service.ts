@@ -72,7 +72,9 @@ export function useMessagingService() {
   const sendMessage = async () => {
     try {
       if (!chatMessage?.text?.trim() && (chatMessage?.media?.length ?? 0) === 0)
-        setIsSending(true);
+        return;
+
+      setIsSending(true);
 
       //upload to cloudinary and get URLs for media items
       const mediaWithUrls = await Promise.all(

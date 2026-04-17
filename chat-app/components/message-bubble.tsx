@@ -1,17 +1,26 @@
 import { View, StyleSheet, Image, Text, TouchableOpacity } from "react-native";
-
+import { useRef } from "react";
 export default function MessageBubble({
   isUserMessage,
   text,
   media,
   handleFilePreview,
+  onLongPress,
 }) {
+  const bubbleRef = useRef<View>(null);
+
   const getFileIcon = (type) => {
     if (type === "pdf") return "📄";
     if (type === "doc" || type === "docx") return "📝";
     if (type === "xls" || type === "xlsx") return "📊";
     if (type === "zip") return "🗜️";
     return "📁";
+  };
+
+  const handleLongPress = () => {
+    bubbleRef.current?.measureInWindow((x, y, width, height) => {
+      onLongPress?.({ x, y });
+    });
   };
 
   return (
@@ -26,6 +35,8 @@ export default function MessageBubble({
             return (
               <TouchableOpacity
                 key={index}
+                ref={bubbleRef}
+                onLongPress={handleLongPress}
                 onPress={() => {
                   handleFilePreview(mediaItem.mediaType, mediaItem.mediaUrl);
                 }}
@@ -43,6 +54,8 @@ export default function MessageBubble({
                 onPress={() => {
                   handleFilePreview(mediaItem.mediaType, mediaItem.mediaUrl);
                 }}
+                ref={bubbleRef}
+                onLongPress={handleLongPress}
               >
                 <View style={styles.videoContainer}>
                   <Image
@@ -62,6 +75,8 @@ export default function MessageBubble({
                 onPress={() =>
                   handleFilePreview(mediaItem.mediaType, mediaItem.mediaUrl)
                 }
+                ref={bubbleRef}
+                onLongPress={handleLongPress}
               >
                 <Text style={styles.fileIcon}>
                   {getFileIcon(mediaItem.mediaType)}
