@@ -1,14 +1,10 @@
 import { View, StyleSheet, Image, Text, TouchableOpacity } from "react-native";
-import { useRef } from "react";
 export default function MessageBubble({
   isUserMessage,
-  text,
-  media,
-  handleFilePreview,
-  onLongPress,
+  messageItem,
+  onPressPreviewItem,
+  onLongPressPreviewItem,
 }) {
-  const bubbleRef = useRef<View>(null);
-
   const getFileIcon = (type) => {
     if (type === "pdf") return "📄";
     if (type === "doc" || type === "docx") return "📝";
@@ -17,85 +13,112 @@ export default function MessageBubble({
     return "📁";
   };
 
-  const handleLongPress = () => {
-    bubbleRef.current?.measureInWindow((x, y, width, height) => {
-      onLongPress?.({ x, y });
-    });
-  };
-
   return (
     <View style={[styles.msg, isUserMessage ? styles.right : styles.left]}>
-      {media &&
-        media.length > 0 &&
-        media.map((mediaItem, index) => {
+      {messageItem.media &&
+        messageItem.media.length > 0 &&
+        messageItem.media.map((mediaItem, index) => {
           if (
             mediaItem.mediaType === "image" ||
             mediaItem.mediaType === "gif"
           ) {
             return (
-              <TouchableOpacity
-                key={index}
-                ref={bubbleRef}
-                onLongPress={handleLongPress}
-                onPress={() => {
-                  handleFilePreview(mediaItem.mediaType, mediaItem.mediaUrl);
-                }}
-              >
-                <Image
-                  source={{ uri: mediaItem.mediaUrl }}
-                  style={styles.mediaImage}
-                />
-              </TouchableOpacity>
+              <View key={index}>
+                <TouchableOpacity
+                  onLongPress={onLongPressPreviewItem(mediaItem.mediaType,  mediaItem.mediaUrl)}
+                  onPress={onPressPreviewItem(mediaItem.mediaType,  mediaItem.mediaUrl)}
+                >
+                  <Image
+                    source={{ uri: mediaItem.mediaUrl }}
+                    style={styles.mediaImage}
+                  />
+                </TouchableOpacity>
+                {mediaItem.reactions && mediaItem.reactions.length > 0 && (
+                  <View style={styles.reactionsContainer}>
+                    {mediaItem.reactions.map((reaction, idx) => (
+                      <View key={idx} style={styles.reactionItem}>
+                        <Text style={styles.reactionIcon}>{reaction}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </View>
             );
           } else if (mediaItem.mediaType === "video") {
             return (
-              <TouchableOpacity
-                key={index}
-                onPress={() => {
-                  handleFilePreview(mediaItem.mediaType, mediaItem.mediaUrl);
-                }}
-                ref={bubbleRef}
-                onLongPress={handleLongPress}
-              >
-                <View style={styles.videoContainer}>
-                  <Image
-                    source={{
-                      uri: mediaItem.mediaPreviewUrl || "",
-                    }}
-                    style={styles.mediaImage}
-                  />
-                  <Text style={styles.playIcon}>▶️</Text>
-                </View>
-              </TouchableOpacity>
+              <View key={index}>
+                <TouchableOpacity
+                  onLongPress={onLongPressPreviewItem(mediaItem.mediaType,  mediaItem.mediaUrl)}
+                  onPress={onPressPreviewItem(mediaItem.mediaType,  mediaItem.mediaUrl)}
+                >
+                  <View style={styles.videoContainer}>
+                    <Image
+                      source={{
+                        uri: mediaItem.mediaPreviewUrl || "",
+                      }}
+                      style={styles.mediaImage}
+                    />
+                    <Text style={styles.playIcon}>▶️</Text>
+                  </View>
+                </TouchableOpacity>
+                {mediaItem.reactions && mediaItem.reactions.length > 0 && (
+                  <View style={styles.reactionsContainer}>
+                    {mediaItem.reactions.map((reaction, idx) => (
+                      <View key={idx} style={styles.reactionItem}>
+                        <Text style={styles.reactionIcon}>{reaction}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </View>
             );
           } else if (mediaItem.mediaType === "file") {
             return (
-              <TouchableOpacity
-                style={styles.filePreviewContainer}
-                onPress={() =>
-                  handleFilePreview(mediaItem.mediaType, mediaItem.mediaUrl)
-                }
-                ref={bubbleRef}
-                onLongPress={handleLongPress}
-              >
-                <Text style={styles.fileIcon}>
-                  {getFileIcon(mediaItem.mediaType)}
-                </Text>
-
-                <View style={{ flex: 1 }}>
-                  <Text numberOfLines={1} style={styles.fileName}>
-                    {mediaItem.mediaName || "File"}
+              <View key={index}>
+                <TouchableOpacity
+                  style={styles.filePreviewContainer}
+                  onLongPress={onLongPressPreviewItem(mediaItem.mediaType,  mediaItem.mediaUrl)}
+                  onPress={onPressPreviewItem(mediaItem.mediaType,  mediaItem.mediaUrl)}
+                >
+                  <Text style={styles.fileIcon}>
+                    {getFileIcon(mediaItem.mediaType)}
                   </Text>
 
-                  <Text style={styles.fileHint}>Tap to open</Text>
-                </View>
-              </TouchableOpacity>
+                  <View style={{ flex: 1 }}>
+                    <Text numberOfLines={1} style={styles.fileName}>
+                      {mediaItem.mediaName || "File"}
+                    </Text>
+
+                    <Text style={styles.fileHint}>Tap to open</Text>
+                  </View>
+                </TouchableOpacity>
+                {mediaItem.reactions && mediaItem.reactions.length > 0 && (
+                  <View style={styles.reactionsContainer}>
+                    {mediaItem.reactions.map((reaction, idx) => (
+                      <View key={idx} style={styles.reactionItem}>
+                        <Text style={styles.reactionIcon}>{reaction}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </View>
             );
           }
           return null;
         })}
-      {text && (
-        <Text style={{ color: isUserMessage ? "#fff" : "#000" }}>{text}</Text>
+      {messageItem.text?.text && (
+        <TouchableOpacity  onLongPress={onLongPressPreviewItem("text", "")}>
+          <Text style={{ color: isUserMessage ? "#fff" : "#000" }}>{messageItem.text?.text}</Text>
+        </TouchableOpacity>
+      )}
+      {messageItem.reactions && messageItem.reactions.length > 0 && (
+        <View style={styles.reactionsContainer}>
+          {messageItem.reactions.map((reaction, index) => (
+            <View key={index} style={styles.reactionItem}>
+              <Text style={styles.reactionIcon}>{reaction}</Text>
+            </View>
+          ))}
+        </View>
       )}
     </View>
   );
@@ -163,5 +186,25 @@ const styles = StyleSheet.create({
   fileHint: {
     fontSize: 12,
     color: "#666",
+  },
+
+  reactionsContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    marginTop: 8,
+    gap: 4,
+  },
+
+  reactionItem: {
+    backgroundColor: "rgba(255, 255, 255, 0.3)",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  reactionIcon: {
+    fontSize: 18,
   },
 });

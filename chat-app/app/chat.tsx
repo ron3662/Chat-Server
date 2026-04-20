@@ -23,8 +23,6 @@ import { EmojiKeyboard } from "@/components/emoji-keyboard";
 import { fileServices } from "@/services/file-services";
 import { MediaInputTextField } from "@/components/media-input-textfield";
 import { useMessagingService } from "@/services/messaging-service";
-import { ReactionKeyboard } from "../components/reaction-keyboard";
-import { useReactionKeyboard } from "@/hooks/use-reaction-keyboard";
 
 const DEFAULT_AVATAR =
   "https://ui-avatars.com/api/?name=User&background=E5E5EA&color=555";
@@ -41,10 +39,6 @@ export default function ChatScreen() {
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [otherUserTyping, setOtherUserTyping] = useState(false);
-  const [previewMedia, setPreviewMedia] = useState<string | null>(null);
-  const [previewType, setPreviewType] = useState<
-    "image" | "video" | "gif" | "file" | null
-  >(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const { pickUniversalMedia } = fileServices();
   const {
@@ -57,8 +51,8 @@ export default function ChatScreen() {
     isSending,
   } = useMessagingService();
 
-  const { visible, activeMessageId, position, open, close } =
-    useReactionKeyboard();
+  const [activePreviewMessage, setPreviewActiveMessage] = useState<any>(null);
+
   useEffect(() => {
     if (!userId || !selectedUserId) return;
     init(
@@ -73,24 +67,22 @@ export default function ChatScreen() {
     );
   }, [userId, selectedUserId]);
 
-  const handleFilePreview = (mediaType: string, mediaUrl: string) => {
-    if (mediaType === "image" || mediaType === "gif") {
-      setPreviewType(mediaType);
-      setPreviewMedia(mediaUrl);
-    } else if (mediaType === "video") {
-      setPreviewType("video");
-      setPreviewMedia(mediaUrl);
-    } else {
-      // For other files, we can either show a generic preview or attempt to open with Linking
-      Linking.canOpenURL(mediaUrl).then((supported) => {
-        if (supported) {
-          Linking.openURL(mediaUrl);
-        } else {
-          setPreviewType("file");
-        }
-      });
+  useEffect(() => {
+    if (activePreviewMessage && activePreviewMessage.mediaType) {
+      if (
+        activePreviewMessage.mediaType !== "image" &&
+        activePreviewMessage.mediaType !== "gif" &&
+        activePreviewMessage.mediaType !== "video"
+      ) {
+        // For other files, we can either show a generic preview or attempt to open with Linking
+        Linking.canOpenURL(activePreviewMessage.mediaUrl).then((supported) => {
+          if (supported) {
+            Linking.openURL(activePreviewMessage.mediaUrl);
+          }
+        });
+      }
     }
-  };
+  }, [activePreviewMessage]);
 
   // Scroll to bottom on new messages or keyboard events
   useEffect(() => {
@@ -116,9 +108,6 @@ export default function ChatScreen() {
     };
   }, []);
 
-  const onMessageLongPress = (id: number, pos: { x: number; y: number }) => {
-    open(id?.toString(), pos);
-  };
   return (
     <SafeAreaView
       edges={["top", "left", "right"]}
@@ -153,15 +142,18 @@ export default function ChatScreen() {
           renderItem={({ item }) => (
             <MessageBubble
               isUserMessage={item.from === userId}
-              text={item.text}
-              media={item.media}
-              handleFilePreview={handleFilePreview}
-              onLongPress={(pos) => onMessageLongPress(item.id, pos)}
+              messageItem={item}
+              onLongPressPreviewItem={() => {
+                setPreviewActiveMessage(item);
+              }}
+              onPressPreviewItem={() => {
+                setPreviewActiveMessage(item);
+              }}
             />
           )}
           ListFooterComponent={
             otherUserTyping ? (
-              <View style={[styles.msg, styles.left]}>
+              <View style={[styles.typingBubble, styles.typingLeft]}>
                 <View style={styles.typingIndicator}>
                   <View style={styles.dot} />
                   <View style={styles.dot} />
@@ -170,14 +162,6 @@ export default function ChatScreen() {
               </View>
             ) : null
           }
-        />
-        <ReactionKeyboard
-          visible={visible}
-          position={position}
-          onClose={close}
-          onSelect={(reaction) => {
-            console.log("Selected:", reaction, activeMessageId);
-          }}
         />
 
         {/* 📝 Input */}
@@ -196,7 +180,7 @@ export default function ChatScreen() {
               onPress={async () => {
                 const selectedMedia = await pickUniversalMedia();
                 if (selectedMedia) {
-                  setChatMessage((prev) => ({
+                  setChatMessage((prev: any) => ({
                     ...prev,
                     media: [...prev.media, ...selectedMedia],
                   }));
@@ -214,7 +198,7 @@ export default function ChatScreen() {
             </TouchableOpacity>
             <MediaInputTextField
               chatMessage={chatMessage}
-              onRemoveMedia={(index) => {
+              onRemoveMedia={(index: number) => {
                 setChatMessage((prev) => ({
                   ...prev,
                   media: prev.media.filter((_, i) => i !== index),
@@ -227,14 +211,14 @@ export default function ChatScreen() {
               style={[
                 styles.sendButton,
                 (isSending ||
-                  (!chatMessage?.text?.trim() &&
+                  (!chatMessage?.text?.text?.trim() &&
                     chatMessage?.media?.length === 0)) &&
                   styles.disabledSendButton,
               ]}
               onPress={() => sendMessage()}
               disabled={
                 isSending ||
-                (!chatMessage?.text.trim() && chatMessage?.media?.length === 0)
+                (!chatMessage?.text?.text?.trim() && chatMessage?.media?.length === 0)
               }
             >
               {isSending ? (
@@ -247,22 +231,28 @@ export default function ChatScreen() {
 
           {showEmojiPicker && (
             <EmojiKeyboard
-              onEmojiSelect={(emoji) => {
+              onEmojiSelect={(emoji: string) => {
                 setChatMessage((prev) => ({
                   ...prev,
-                  text: prev.text + emoji,
+                  text: {
+                    ...prev.text,
+                    text: prev.text.text + emoji,
+                  },
                 }));
                 setShowEmojiPicker(false);
               }}
-              onGifSelect={(gif) => {
-                setChatMessage((prev) => ({
+              onGifSelect={(gif: string) => {
+                setChatMessage((prev: any) => ({
                   ...prev,
-                  text: prev.text + gif,
+                  media: [
+                    ...prev.media,
+                    { mediaType: "gif", mediaUrl: gif, mediaName: "GIF" },
+                  ],
                 }));
                 setShowEmojiPicker(false);
               }}
-              onTenorGifSelect={(gif) => {
-                setChatMessage((prev) => ({
+              onTenorGifSelect={(gif: string) => {
+                setChatMessage((prev: any) => ({
                   ...prev,
                   media: [
                     ...prev.media,
@@ -285,11 +275,18 @@ export default function ChatScreen() {
       />
 
       <MediaPreview
-        previewMedia={previewMedia}
-        previewType={previewType}
+        previewMessage={activePreviewMessage}
         onClose={() => {
-          setPreviewMedia(null);
-          setPreviewType(null);
+          setPreviewActiveMessage(null);
+        }}
+        onReact={(reactions: string[]) => {
+          // Handle reactions for the preview message
+          if (activePreviewMessage) {
+            // TODO: Send updated reactions to server/backend with the preview message
+            // Example: await sendReactions(activePreviewMessage.id, reactions);
+
+            setPreviewActiveMessage(null);
+          }
         }}
       />
     </SafeAreaView>
@@ -351,5 +348,18 @@ const styles = StyleSheet.create({
     height: 6,
     borderRadius: 3,
     backgroundColor: "#999",
+  },
+
+  typingBubble: {
+    padding: 10,
+    marginVertical: 5,
+    borderRadius: 10,
+    marginHorizontal: 12,
+    maxWidth: "75%",
+  },
+
+  typingLeft: {
+    backgroundColor: "#eee",
+    alignSelf: "flex-start",
   },
 });

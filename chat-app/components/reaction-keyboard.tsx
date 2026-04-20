@@ -1,5 +1,4 @@
-import { View, Text, TouchableOpacity, StyleSheet, Dimensions } from "react-native";
-import { BlurView } from "expo-blur";
+import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -10,73 +9,79 @@ import { useEffect } from "react";
 
 const reactions = ["❤️", "😂", "😮", "😢", "👍", "🔥"];
 
-export function ReactionKeyboard({ visible, position, onClose, onSelect }) {
-  const scale = useSharedValue(0);
+export function ReactionKeyboard({ onSelect }) {
+  const translateY = useSharedValue(30);
   const opacity = useSharedValue(0);
 
   useEffect(() => {
-    if (visible) {
-      scale.value = withSpring(1.2, { damping: 8 });
-      opacity.value = withTiming(1);
-    } else {
-      scale.value = withTiming(0);
-      opacity.value = withTiming(0);
-    }
-  }, [visible]);
+    translateY.value = withSpring(0, { damping: 10, stiffness: 120 });
+    opacity.value = withTiming(1, { duration: 300 });
+  }, []);
 
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
+  const containerStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: translateY.value }],
     opacity: opacity.value,
   }));
 
-  if (!visible) return null;
+  return (
+    <Animated.View style={[styles.container, containerStyle]}>
+      {reactions.map((emoji, index) => (
+        <ReactionItem key={index} emoji={emoji} onSelect={onSelect} />
+      ))}
+    </Animated.View>
+  );
+}
+
+function ReactionItem({ emoji, onSelect }) {
+  const scale = useSharedValue(1);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  const handlePress = () => {
+    // 🔥 small tap bounce
+    scale.value = withSpring(1.4, {}, () => {
+      scale.value = withSpring(1);
+    });
+
+    onSelect(emoji);
+  };
 
   return (
-    <View style={StyleSheet.absoluteFill}>
-      
-      {/* 🔥 Blur Background */}
-      <BlurView intensity={50} style={StyleSheet.absoluteFill}>
-        <TouchableOpacity style={{ flex: 1 }} onPress={onClose} />
-      </BlurView>
-
-      {/* 💬 Reaction Bar */}
-      <Animated.View
-        style={[
-          styles.reactionBar,
-          {
-            top: position.y - 60,
-            left: position.x,
-          },
-          animatedStyle,
-        ]}
-      >
-        {reactions.map((emoji, index) => (
-          <TouchableOpacity
-            key={index}
-            onPress={() => {
-              onSelect(emoji);
-              onClose();
-            }}
-          >
-            <Text style={styles.emoji}>{emoji}</Text>
-          </TouchableOpacity>
-        ))}
-      </Animated.View>
-    </View>
+    <TouchableOpacity onPress={handlePress} activeOpacity={0.7}>
+      <Animated.Text style={[styles.emoji, animatedStyle]}>
+        {emoji}
+      </Animated.Text>
+    </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
-  reactionBar: {
-    position: "absolute",
+  container: {
     flexDirection: "row",
-    backgroundColor: "#fff",
-    padding: 10,
-    borderRadius: 30,
-    elevation: 10,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    paddingBottom: 32,
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 12,
+
+    // ✨ glass effect - frosted glass
+    backgroundColor: "rgba(255,255,255,0.1)",
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.2)",
+
+    // shadow (android + ios)
+    elevation: 20,
+    shadowColor: "#000",
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: -4 },
   },
+
   emoji: {
-    fontSize: 24,
-    marginHorizontal: 6,
+    fontSize: 32,
+    paddingHorizontal: 4,
   },
 });

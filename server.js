@@ -23,12 +23,23 @@ cloudinary.config({
 // Multer memory storage
 const upload = multer({ storage: multer.memoryStorage() });
 
+const reaction = new mongoose.Schema({
+  userId: String,
+  reaction : String,
+}, { _id: false });
+
 const mediaSchema = new mongoose.Schema({
   mediaType: { type: String, required: true }, // image, video, pdf, file
   mediaName: { type: String },
   mediaPreviewUrl: { type: String }, // thumbnail (video/pdf)
   mediaUrl: { type: String, required: true },
-});
+  reaction: [reaction],
+}, { _id: false });
+
+const textMessage = new mongoose.Schema({
+  text: String,
+  reaction : [reaction],
+}, { _id: false });
 
 // Models
 const User = mongoose.model("User", {
@@ -43,7 +54,7 @@ const User = mongoose.model("User", {
 const Message = mongoose.model("Message", {
   from: String,
   to: String,
-  text: String,
+  text: textMessage,
   media: [mediaSchema],
   time: Date,
 });

@@ -20,7 +20,7 @@ export function useMessagingService() {
   const [chatMessage, setChatMessage] = useState({
     from: "",
     to: "",
-    text: "",
+    text: {text: "", reaction : []},
     media: [],
     time: new Date(),
   });
@@ -71,7 +71,7 @@ export function useMessagingService() {
 
   const sendMessage = async () => {
     try {
-      if (!chatMessage?.text?.trim() && (chatMessage?.media?.length ?? 0) === 0)
+      if (!chatMessage?.text?.text.trim() && (chatMessage?.media?.length ?? 0) === 0)
         return;
 
       setIsSending(true);
@@ -110,7 +110,7 @@ export function useMessagingService() {
       setChatMessage({
         from: userId,
         to: selectedUserId,
-        text: "",
+        text: {text: "", reaction:[]},
         media: [],
         time: new Date(),
       });
