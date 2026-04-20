@@ -33,12 +33,12 @@ const mediaSchema = new mongoose.Schema({
   mediaName: { type: String },
   mediaPreviewUrl: { type: String }, // thumbnail (video/pdf)
   mediaUrl: { type: String, required: true },
-  reaction: [reaction],
+  reactions: [reaction],
 }, { _id: false });
 
 const textMessage = new mongoose.Schema({
   text: String,
-  reaction : [reaction],
+  reactions : [reaction],
 }, { _id: false });
 
 // Models

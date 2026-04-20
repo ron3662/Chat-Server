@@ -48,6 +48,7 @@ export default function ChatScreen() {
     chatMessage,
     setChatMessage,
     messages,
+    setMessages,
     isSending,
   } = useMessagingService();
 
@@ -68,18 +69,21 @@ export default function ChatScreen() {
   }, [userId, selectedUserId]);
 
   useEffect(() => {
-    if (activePreviewMessage && activePreviewMessage.mediaType) {
+    if (activePreviewMessage && activePreviewMessage.interactedItem) {
+      const item = activePreviewMessage.interactedItem;
       if (
-        activePreviewMessage.mediaType !== "image" &&
-        activePreviewMessage.mediaType !== "gif" &&
-        activePreviewMessage.mediaType !== "video"
+        item.type !== "image" &&
+        item.type !== "gif" &&
+        item.type !== "video"
       ) {
         // For other files, we can either show a generic preview or attempt to open with Linking
-        Linking.canOpenURL(activePreviewMessage.mediaUrl).then((supported) => {
-          if (supported) {
-            Linking.openURL(activePreviewMessage.mediaUrl);
-          }
-        });
+        if (item.url) {
+          Linking.canOpenURL(item.url).then((supported) => {
+            if (supported) {
+              Linking.openURL(item.url);
+            }
+          });
+        }
       }
     }
   }, [activePreviewMessage]);
@@ -139,15 +143,17 @@ export default function ChatScreen() {
           contentContainerStyle={{ paddingTop: 20, paddingBottom: 20 }}
           scrollEnabled={true}
           nestedScrollEnabled={true}
-          renderItem={({ item }) => (
+          renderItem={({ item, index }) => (
             <MessageBubble
               isUserMessage={item.from === userId}
               messageItem={item}
-              onLongPressPreviewItem={() => {
-                setPreviewActiveMessage(item);
+              onLongPressPreviewItem={(interactedItem: any) => {
+                console.log("Long press callback called with:", interactedItem);
+                setPreviewActiveMessage({ index, interactedItem });
               }}
-              onPressPreviewItem={() => {
-                setPreviewActiveMessage(item);
+              onPressPreviewItem={(interactedItem: any) => {
+                console.log("Press callback called with:", interactedItem);
+                setPreviewActiveMessage({ index, interactedItem });
               }}
             />
           )}
@@ -274,21 +280,34 @@ export default function ChatScreen() {
         tagline={parsedUser.tagline || "Hey there 👋"}
       />
 
-      <MediaPreview
-        previewMessage={activePreviewMessage}
-        onClose={() => {
-          setPreviewActiveMessage(null);
-        }}
-        onReact={(reactions: string[]) => {
-          // Handle reactions for the preview message
-          if (activePreviewMessage) {
-            // TODO: Send updated reactions to server/backend with the preview message
-            // Example: await sendReactions(activePreviewMessage.id, reactions);
+      {activePreviewMessage && activePreviewMessage.interactedItem ? (
+        <MediaPreview
+          previewMessage={activePreviewMessage.interactedItem}
+          onClose={() => {
+            setMessages((prev) => {
+              if (!activePreviewMessage) return prev;
+              const { index, interactedItem } = activePreviewMessage;
+              const messageToUpdate = prev[index];
+              if (!messageToUpdate) return prev;
 
+              // Update reactions for the specific media item or text
+              if (interactedItem.type === "text") {
+                messageToUpdate.text.reactions = interactedItem.reactions;
+              } else {
+                const mediaItem = messageToUpdate.media[interactedItem.mediaIndex];
+                if (mediaItem) {
+                  mediaItem.reactions = interactedItem.reactions;
+                }
+              }
+
+              const newMessages = [...prev];
+              newMessages[index] = { ...messageToUpdate };
+              return newMessages;
+            });
             setPreviewActiveMessage(null);
-          }
-        }}
-      />
+          }}
+        />
+      ) : null}
     </SafeAreaView>
   );
 }

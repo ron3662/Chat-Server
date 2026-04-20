@@ -122,7 +122,10 @@ export function useMessagingService() {
   };
 
   const handleTyping = (text: string) => {
-    setChatMessage((prev) => ({ ...prev, text }));
+    setChatMessage((prev) => ({ 
+      ...prev, 
+      text: { ...prev.text, text } 
+    }));
 
     if (!typingIndicatorRef.current && getSocket()) {
       typingIndicatorRef.current = true;
@@ -142,6 +145,7 @@ export function useMessagingService() {
     chatMessage,
     setChatMessage,
     messages,
+    setMessages,
     isSending,
   };
 }

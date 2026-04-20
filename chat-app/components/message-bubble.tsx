@@ -25,8 +25,14 @@ export default function MessageBubble({
             return (
               <View key={index}>
                 <TouchableOpacity
-                  onLongPress={onLongPressPreviewItem(mediaItem.mediaType,  mediaItem.mediaUrl)}
-                  onPress={onPressPreviewItem(mediaItem.mediaType,  mediaItem.mediaUrl)}
+                  onLongPress={() => {
+                    console.log("Image long pressed");
+                    onLongPressPreviewItem({type: mediaItem.mediaType, url: mediaItem.mediaUrl, reactions: mediaItem.reactions, mediaIndex: index});
+                  }}
+                  onPress={() => {
+                    console.log("Image pressed");
+                    onPressPreviewItem({type: mediaItem.mediaType, url: mediaItem.mediaUrl, reactions: mediaItem.reactions, mediaIndex: index});
+                  }}
                 >
                   <Image
                     source={{ uri: mediaItem.mediaUrl }}
@@ -48,8 +54,8 @@ export default function MessageBubble({
             return (
               <View key={index}>
                 <TouchableOpacity
-                  onLongPress={onLongPressPreviewItem(mediaItem.mediaType,  mediaItem.mediaUrl)}
-                  onPress={onPressPreviewItem(mediaItem.mediaType,  mediaItem.mediaUrl)}
+                  onLongPress={() => onLongPressPreviewItem({type: mediaItem.mediaType, url: mediaItem.mediaUrl, reactions: mediaItem.reactions, mediaIndex: index})}
+                  onPress={() => onPressPreviewItem({type: mediaItem.mediaType, url: mediaItem.mediaUrl, reactions: mediaItem.reactions, mediaIndex: index})}
                 >
                   <View style={styles.videoContainer}>
                     <Image
@@ -77,8 +83,8 @@ export default function MessageBubble({
               <View key={index}>
                 <TouchableOpacity
                   style={styles.filePreviewContainer}
-                  onLongPress={onLongPressPreviewItem(mediaItem.mediaType,  mediaItem.mediaUrl)}
-                  onPress={onPressPreviewItem(mediaItem.mediaType,  mediaItem.mediaUrl)}
+                  onLongPress={() => onLongPressPreviewItem({type: mediaItem.mediaType, url: mediaItem.mediaUrl, reactions: mediaItem.reactions, mediaIndex: index})}
+                  onPress={() => onPressPreviewItem({type: mediaItem.mediaType, url: mediaItem.mediaUrl, reactions: mediaItem.reactions, mediaIndex: index})}
                 >
                   <Text style={styles.fileIcon}>
                     {getFileIcon(mediaItem.mediaType)}
@@ -107,13 +113,13 @@ export default function MessageBubble({
           return null;
         })}
       {messageItem.text?.text && (
-        <TouchableOpacity  onLongPress={onLongPressPreviewItem("text", "")}>
+        <TouchableOpacity  onLongPress={() => onLongPressPreviewItem({type: "text", url: messageItem.text?.text, reactions: messageItem.text.reactions, mediaIndex: -1})}>
           <Text style={{ color: isUserMessage ? "#fff" : "#000" }}>{messageItem.text?.text}</Text>
         </TouchableOpacity>
       )}
-      {messageItem.reactions && messageItem.reactions.length > 0 && (
+      {messageItem.text?.reactions && messageItem.text.reactions.length > 0 && (
         <View style={styles.reactionsContainer}>
-          {messageItem.reactions.map((reaction, index) => (
+          {messageItem.text.reactions.map((reaction, index) => (
             <View key={index} style={styles.reactionItem}>
               <Text style={styles.reactionIcon}>{reaction}</Text>
             </View>

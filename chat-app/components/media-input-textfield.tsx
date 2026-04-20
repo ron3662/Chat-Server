@@ -12,13 +12,18 @@ export function MediaInputTextField({
   onRemoveMedia,
   handleTyping,
   sendMessage,
+}: {
+  chatMessage: any;
+  onRemoveMedia: (index: number) => void;
+  handleTyping: (text: string) => void;
+  sendMessage: () => void;
 }) {
   return (
     <View style={styles.inputContainer}>
       {/* 📂 Selected Files (WRAPS properly) */}
       {chatMessage.media.length > 0 && (
         <View style={styles.filesContainer}>
-          {chatMessage.media.map((file, index) => (
+          {chatMessage.media.map((file: any, index: number) => (
             <View key={index} style={styles.fileItem}>
               {file.mediaType === "image" || file.mediaType === "gif" ? (
                 <Image
@@ -57,14 +62,13 @@ export function MediaInputTextField({
       {/* 📝 Text input ALWAYS at bottom */}
       <TextInput
         style={styles.chatInput}
-        value={chatMessage.text || ""}
+        value={chatMessage.text?.text || ""}
         onChangeText={handleTyping}
         placeholder="Type a message..."
         placeholderTextColor="#888"
         returnKeyType="send"
         onSubmitEditing={() => sendMessage()}
         multiline
-        maxHeight={80}
       />
     </View>
   );

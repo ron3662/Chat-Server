@@ -2,13 +2,15 @@ import { View, StyleSheet, Image, Text, TouchableOpacity, Animated } from "react
 import { Modal, Pressable } from "react-native";
 import { BlurView } from "expo-blur";
 import { Video } from "expo-av";
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { ReactionKeyboard } from "./reaction-keyboard";
 
 export default function MediaPreview({
   previewMessage,
   onClose,
-  onReact,
+}: {
+  previewMessage: any;
+  onClose: () => void;
 }) {
   const [reactions, setReactions] = useState<string[]>(previewMessage?.reactions || []);
   const [showKeyboard, setShowKeyboard] = useState(false);
@@ -18,10 +20,17 @@ export default function MediaPreview({
   const burstOpacity = useRef(new Animated.Value(0)).current;
   const [burstEmoji, setBurstEmoji] = useState<string | null>(null);
 
-  const previewType = previewMessage?.mediaType;
-  const previewMedia = previewMessage?.mediaUrl || previewMessage?.media;
-  const mediaPreviewUrl = previewMessage?.mediaPreviewUrl;
-  const text = previewMessage?.text?.text || previewMessage?.text || "";
+  // Sync reactions when previewMessage changes
+  useEffect(() => {
+    if (previewMessage) {
+      setReactions(previewMessage?.reactions || []);
+      setShowKeyboard(false);
+    }
+  }, [previewMessage]);
+
+  const previewType = previewMessage?.type;
+  const previewMedia = previewMessage?.url;
+  const text = previewMessage?.text?.text;
 
   const triggerBurst = (emoji: string) => {
     setBurstEmoji(emoji);
@@ -49,7 +58,10 @@ export default function MediaPreview({
     if (!reactions.includes(emoji)) {
       const updatedReactions = [...reactions, emoji];
       setReactions(updatedReactions);
-      onReact?.(updatedReactions);
+      // Update previewMessage directly through parent state
+      if (previewMessage) {
+        previewMessage.reactions = updatedReactions;
+      }
     }
     setShowKeyboard(false);
   };
@@ -57,15 +69,26 @@ export default function MediaPreview({
   const handleRemoveReaction = (emoji: string) => {
     const updatedReactions = reactions.filter((r) => r !== emoji);
     setReactions(updatedReactions);
-    onReact?.(updatedReactions);
+    // Update previewMessage directly through parent state
+    if (previewMessage) {
+      previewMessage.reactions = updatedReactions;
+    }
   };
+
+  const handleClose = () => {
+    setShowKeyboard(false);
+    onClose?.();
+  };
+
+  // Only show if previewMessage has valid data
+  const isValidPreviewMessage = previewMessage && (previewMessage.type || previewMessage.text);
 
   return (
     <Modal
-      visible={!!previewMessage.media}
+      visible={isValidPreviewMessage}
       transparent
       animationType="fade"
-      onRequestClose={onClose}
+      onRequestClose={handleClose}
     >
       {/* 🔲 Blur Background */}
       <Pressable
@@ -74,7 +97,7 @@ export default function MediaPreview({
           if (showKeyboard) {
             setShowKeyboard(false);
           } else {
-            onClose();
+            handleClose();
           }
         }}
       >
@@ -128,7 +151,6 @@ export default function MediaPreview({
                 source={{ uri: previewMedia }}
                 style={{ width: "100%", height: "100%" }}
                 useNativeControls
-                resizeMode="contain"
                 shouldPlay
               />
             </View>
