@@ -138,10 +138,41 @@ export function useMessagingService() {
     }, 2000);
   };
 
+  const updateReaction = async (
+    messageId: string,
+    emoji: string,
+    mediaIndex?: number
+  ) => {
+    try {
+      const response = await axios.post(
+        `${SERVER_URL}/messages/${messageId}/reactions`,
+        {
+          userId,
+          emoji,
+          mediaIndex: mediaIndex ?? undefined,
+          isText: mediaIndex === undefined,
+        }
+      );
+      
+      // Update local message state with updated reactions
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg._id === messageId ? response.data : msg
+        )
+      );
+      
+      return response.data;
+    } catch (error) {
+      console.error("Failed to update reaction:", error);
+      throw error;
+    }
+  };
+
   return {
     init,
     sendMessage,
     handleTyping,
+    updateReaction,
     chatMessage,
     setChatMessage,
     messages,

@@ -4,6 +4,8 @@ import { BlurView } from "expo-blur";
 import { Video } from "expo-av";
 import { useRef, useState, useEffect } from "react";
 import { ReactionKeyboard } from "./reaction-keyboard";
+import { useMessagingService } from "@/services/messaging-service";
+import { useUser } from "@/context/UserContext";
 
 export default function MediaPreview({
   previewMessage,
@@ -12,7 +14,11 @@ export default function MediaPreview({
   previewMessage: any;
   onClose: () => void;
 }) {
-  const [reactions, setReactions] = useState<string[]>(previewMessage?.reactions || []);
+  const { userId } = useUser();
+  const { updateReaction } = useMessagingService();
+  const previewMessageItem = previewMessage?.interactedItem || {};
+  const messageId = previewMessage?.messageId;
+  const [reactions, setReactions] = useState<string[]>(previewMessageItem?.reactions || []);
   const [showKeyboard, setShowKeyboard] = useState(false);
 
   // 🔥 animation values
@@ -22,15 +28,15 @@ export default function MediaPreview({
 
   // Sync reactions when previewMessage changes
   useEffect(() => {
-    if (previewMessage) {
-      setReactions(previewMessage?.reactions || []);
+    if (previewMessageItem) {
+      setReactions(previewMessageItem?.reactions || []);
       setShowKeyboard(false);
     }
-  }, [previewMessage]);
+  }, [previewMessageItem]);
 
-  const previewType = previewMessage?.type;
-  const previewMedia = previewMessage?.url;
-  const text = previewMessage?.text?.text;
+  const previewType = previewMessageItem?.type;
+  const previewMedia = previewMessageItem?.url;
+  const text = previewMessageItem?.url;
 
   const triggerBurst = (emoji: string) => {
     setBurstEmoji(emoji);
@@ -53,25 +59,31 @@ export default function MediaPreview({
     });
   };
 
-  const handleSelectReaction = (emoji: string) => {
+  const handleSelectReaction = async (emoji: string) => {
     triggerBurst(emoji);
-    if (!reactions.includes(emoji)) {
-      const updatedReactions = [...reactions, emoji];
-      setReactions(updatedReactions);
-      // Update previewMessage directly through parent state
-      if (previewMessage) {
-        previewMessage.reactions = updatedReactions;
-      }
-    }
     setShowKeyboard(false);
+    
+    try {
+      const mediaIndex = previewMessageItem.mediaIndex !== undefined && previewMessageItem.mediaIndex !== -1 
+        ? previewMessageItem.mediaIndex 
+        : undefined;
+      
+      await updateReaction(messageId, emoji, mediaIndex);
+    } catch (error) {
+      console.error("Failed to add reaction:", error);
+    }
   };
 
-  const handleRemoveReaction = (emoji: string) => {
-    const updatedReactions = reactions.filter((r) => r !== emoji);
-    setReactions(updatedReactions);
-    // Update previewMessage directly through parent state
-    if (previewMessage) {
-      previewMessage.reactions = updatedReactions;
+  const handleRemoveReaction = async (emoji: string) => {
+    try {
+      const mediaIndex = previewMessageItem.mediaIndex !== undefined && previewMessageItem.mediaIndex !== -1 
+        ? previewMessageItem.mediaIndex 
+        : undefined;
+      
+      // Send the same emoji again to toggle it off
+      await updateReaction(messageId, emoji, mediaIndex);
+    } catch (error) {
+      console.error("Failed to remove reaction:", error);
     }
   };
 
@@ -81,7 +93,7 @@ export default function MediaPreview({
   };
 
   // Only show if previewMessage has valid data
-  const isValidPreviewMessage = previewMessage && (previewMessage.type || previewMessage.text);
+  const isValidPreviewMessage = !!(previewMessageItem && (previewMessageItem.type || previewMessageItem.text));
 
   return (
     <Modal

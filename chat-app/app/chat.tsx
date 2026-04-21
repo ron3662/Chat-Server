@@ -50,6 +50,7 @@ export default function ChatScreen() {
     messages,
     setMessages,
     isSending,
+    updateReaction,
   } = useMessagingService();
 
   const [activePreviewMessage, setPreviewActiveMessage] = useState<any>(null);
@@ -149,11 +150,11 @@ export default function ChatScreen() {
               messageItem={item}
               onLongPressPreviewItem={(interactedItem: any) => {
                 console.log("Long press callback called with:", interactedItem);
-                setPreviewActiveMessage({ index, interactedItem });
+                setPreviewActiveMessage({ index, interactedItem, messageId: item._id });
               }}
               onPressPreviewItem={(interactedItem: any) => {
                 console.log("Press callback called with:", interactedItem);
-                setPreviewActiveMessage({ index, interactedItem });
+                setPreviewActiveMessage({ index, interactedItem, messageId: item._id });
               }}
             />
           )}
@@ -282,7 +283,7 @@ export default function ChatScreen() {
 
       {activePreviewMessage && activePreviewMessage.interactedItem ? (
         <MediaPreview
-          previewMessage={activePreviewMessage.interactedItem}
+          previewMessage={activePreviewMessage}
           onClose={() => {
             setMessages((prev) => {
               if (!activePreviewMessage) return prev;

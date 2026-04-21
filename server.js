@@ -170,6 +170,60 @@ app.post("/upload", upload.single("file"), async (req, res) => {
   }
 });
 
+// Update message reactions
+app.post("/messages/:messageId/reactions", async (req, res) => {
+  try {
+    const { messageId } = req.params;
+    const { userId, emoji, mediaIndex, isText } = req.body;
+
+    const message = await Message.findById(messageId);
+    if (!message) return res.status(404).send("Message not found");
+
+    // Update text reactions
+    if (isText) {
+      if (!message.text) message.text = { text: "", reactions: [] };
+      if (!message.text.reactions) message.text.reactions = [];
+
+      // Check if reaction already exists
+      const existingIndex = message.text.reactions.findIndex(
+        (r) => r.userId === userId && r.reaction === emoji
+      );
+
+      if (existingIndex !== -1) {
+        // Remove reaction if it already exists (toggle)
+        message.text.reactions.splice(existingIndex, 1);
+      } else {
+        // Add new reaction
+        message.text.reactions.push({ userId, reaction: emoji });
+      }
+    }
+    // Update media reactions
+    else if (mediaIndex !== undefined && mediaIndex >= 0) {
+      if (!message.media[mediaIndex].reactions) {
+        message.media[mediaIndex].reactions = [];
+      }
+
+      // Check if reaction already exists
+      const existingIndex = message.media[mediaIndex].reactions.findIndex(
+        (r) => r.userId === userId && r.reaction === emoji
+      );
+
+      if (existingIndex !== -1) {
+        // Remove reaction if it already exists (toggle)
+        message.media[mediaIndex].reactions.splice(existingIndex, 1);
+      } else {
+        // Add new reaction
+        message.media[mediaIndex].reactions.push({ userId, reaction: emoji });
+      }
+    }
+
+    await message.save();
+    res.send(message);
+  } catch (err) {
+    res.status(500).send({ error: err.message });
+  }
+});
+
 // WebSocket
 const server = app.listen(process.env.PORT || 3000, () => console.log("Server running"));
 const wss = new WebSocket.Server({ server });
